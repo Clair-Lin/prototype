@@ -1,0 +1,3074 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数字水印系统 - 原型</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+                800: '#1e40af',
+                900: '#1e3a8a'
+              }
+            },
+            boxShadow: {
+              card: '0 8px 30px rgba(0,0,0,0.06)'
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Fallback if CDN fails -->
+    <noscript>
+      <style>
+        .fa-solid, .fa-regular, .fa-brands { display: inline-block; width: 1em; height: 1em; }
+        .fa-th-large::before { content: "☰"; }
+        .fa-shield-check::before { content: "✓"; }
+        .fa-bars::before { content: "☰"; }
+        .fa-key::before { content: "🔑"; }
+        .fa-bell::before { content: "🔔"; }
+        .fa-gear::before { content: "⚙"; }
+        .fa-user::before { content: "👤"; }
+        .fa-chevron-down::before { content: "⌄"; }
+      </style>
+    </noscript>
+    <style>
+      /* Smoothly hide/show views */
+      .view { display: none; }
+      .view.active { display: block; }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      /* Top nav active state */
+      .top-nav-btn.active {
+        background-color: rgba(255,255,255,0.2);
+        font-weight: 500;
+      }
+      /* Ensure icons are visible */
+      .fa-solid, .fa-regular, .fa-brands {
+        display: inline-block;
+        font-style: normal;
+        font-variant: normal;
+        text-rendering: auto;
+        line-height: 1;
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Pro", "Font Awesome 6 Brands", sans-serif;
+      }
+      /* Ensure top menu icons are visible and styled consistently */
+      header .top-menu-icon {
+        color: white !important;
+        font-weight: 400;
+        opacity: 1 !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        display: inline-block !important;
+        font-size: 1.25rem;
+      }
+      /* Ensure Font Awesome icons load properly */
+      header i.fa-solid,
+      header i.fa-regular {
+        font-family: "Font Awesome 6 Free" !important;
+        font-weight: 900 !important;
+      }
+      /* Fallback if FontAwesome fails to load */
+      .fa-th-large:not([class*="fa-"])::before,
+      .fa-th-large[style*="display: none"]::before {
+        content: "☰";
+        font-family: sans-serif;
+      }
+      .fa-shield-check:not([class*="fa-"])::before,
+      .fa-shield-check[style*="display: none"]::before,
+      .fa-shield-halved:not([class*="fa-"])::before,
+      .fa-shield-halved[style*="display: none"]::before {
+        content: "🛡";
+        font-family: sans-serif;
+        font-size: 1.2em;
+      }
+      /* Ensure shield icon is visible */
+      .fa-shield-halved {
+        font-weight: 900;
+      }
+      /* Icon button hover effects */
+      header button:hover {
+        transform: scale(1.05);
+        transition: transform 0.2s;
+      }
+      /* Dropdown menu animation */
+      #menuGridDropdown {
+        animation: fadeIn 0.2s ease-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      /* Menu item hover effect */
+      .menu-item:hover {
+        background-color: #f3f4f6 !important;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 text-gray-800">
+    <!-- Error overlay (shows JS runtime errors for easier debugging) -->
+    <div id="errorOverlay" class="hidden fixed inset-4 z-50 flex items-start justify-center p-4">
+      <div class="bg-red-50 border border-red-200 text-red-900 rounded shadow-lg w-full max-w-3xl p-4">
+        <div class="flex items-start justify-between">
+          <div class="font-semibold">运行时错误</div>
+          <button id="errorOverlayClose" class="text-red-700">关闭</button>
+        </div>
+        <pre id="errorOverlayMsg" class="whitespace-pre-wrap mt-2 text-sm"></pre>
+      </div>
+    </div>
+    <!-- App Shell -->
+    <div class="min-h-screen flex flex-col">
+      <!-- Top Bar -->
+      <header class="h-14 bg-primary-600 text-white flex items-center justify-between px-4 shadow">
+        <!-- Left: Platform Title -->
+        <div class="flex items-center gap-3 font-semibold tracking-wide">
+          <button id="sidebarToggle" class="lg:hidden p-2 rounded hover:bg-primary-700 focus:outline-none mr-2" aria-label="Toggle Sidebar">
+            <i class="fa-solid fa-border-all text-xl"></i>
+          </button>
+          <span>数据脱敏与溯源平台</span>
+        </div>
+        <!-- Right: All Icons -->
+        <div class="flex items-center gap-2">
+          <!-- Grid Icon with Dropdown -->
+          <div class="relative">
+            <button id="menuGridBtn" class="p-2 rounded hover:bg-primary-700 transition-colors relative">
+              <i class="fa-solid fa-bars text-xl top-menu-icon"></i>
+            </button>
+            <!-- Dropdown Menu -->
+            <div id="menuGridDropdown" class="absolute right-0 mt-2 w-56 bg-white rounded shadow-lg border border-gray-200 hidden z-50">
+              <div class="py-1">
+                <a href="javascript:void(0)" class="menu-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm transition-colors">
+                  <i class="fa-solid fa-th-large text-gray-500 w-5"></i>
+                  <span>控制台主页</span>
+                </a>
+                <a href="javascript:void(0)" class="menu-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm transition-colors">
+                  <i class="fa-solid fa-shield-check text-gray-500 w-5"></i>
+                  <span>静态数据脱敏</span>
+                </a>
+                <a href="javascript:void(0)" class="menu-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm transition-colors">
+                  <i class="fa-solid fa-bolt text-gray-500 w-5"></i>
+                  <span>动态数据脱敏</span>
+                </a>
+                <a href="javascript:void(0)" data-module="watermark" class="menu-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm transition-colors">
+                  <i class="fa-solid fa-pen text-gray-500 w-5"></i>
+                  <span>水印与溯源服务</span>
+                </a>
+                <a href="javascript:void(0)" data-module="asset" class="menu-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm transition-colors">
+                  <i class="fa-solid fa-folder-open text-gray-500 w-5"></i>
+                  <span>资产管理</span>
+                </a>
+                <a href="javascript:void(0)" class="menu-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 text-sm transition-colors">
+                  <i class="fa-solid fa-link text-gray-500 w-5"></i>
+                  <span>涉敏业务</span>
+                </a>
+              </div>
+            </div>
+          </div>
+          <!-- Shield Icon - Rules Library Entry -->
+          <button id="shieldRulesBtn" data-module="rules" class="p-2 rounded hover:bg-primary-700 transition-colors" title="规则库">
+            <i class="fa-solid fa-shield text-xl top-menu-icon"></i>
+          </button>
+          <!-- Key Icon -->
+          <button class="p-2 rounded hover:bg-primary-700 transition-colors" title="密钥库">
+            <i class="fa-solid fa-key text-xl top-menu-icon"></i>
+          </button>
+          <!-- Notification Icon with Badge -->
+          <button class="p-2 rounded hover:bg-primary-700 transition-colors relative">
+            <i class="fa-solid fa-bell text-xl top-menu-icon"></i>
+            <span class="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-semibold">1</span>
+          </button>
+          <!-- Settings Icon -->
+          <button class="p-2 rounded hover:bg-primary-700 transition-colors">
+            <i class="fa-solid fa-gear text-xl top-menu-icon"></i>
+          </button>
+          <!-- User Menu -->
+          <div class="relative">
+            <button id="userMenuBtn" class="flex items-center gap-2 px-2 py-1 rounded hover:bg-primary-700 transition-colors">
+              <div class="w-8 h-8 rounded-full bg-white/20 grid place-items-center">
+                <i class="fa-regular fa-user text-sm"></i>
+              </div>
+              <span class="text-sm">admin</span>
+              <i class="fa-solid fa-chevron-down text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar - Dynamic based on module -->
+        <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 p-3 space-y-4 overflow-y-auto transition-all duration-200 hidden lg:block">
+          <!-- Watermark Service Sidebar -->
+          <div id="sidebar-watermark" class="sidebar-module">
+            <div class="px-3 py-2 text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>水印与溯源服务</span>
+              <button class="lg:hidden p-1 rounded hover:bg-gray-100">
+                <i class="fa-solid fa-bars text-xs"></i>
+              </button>
+            </div>
+            <nav class="space-y-1 mt-2">
+              <a data-module="watermark" data-page="home" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-solid fa-house"></i>
+                <span>概览</span>
+              </a>
+              <a data-module="watermark" data-page="strategy" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-solid fa-sitemap"></i>
+                <span>接入业务水印</span>
+              </a>
+              <a data-module="watermark" data-page="trace" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <span>水印溯源</span>
+              </a>
+            </nav>
+          </div>
+          <!-- Asset Management Sidebar -->
+          <div id="sidebar-asset" class="sidebar-module hidden">
+            <div class="px-3 py-2 text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>资产管理</span>
+              <button class="lg:hidden p-1 rounded hover:bg-gray-100">
+                <i class="fa-solid fa-bars text-xs"></i>
+              </button>
+            </div>
+            <nav class="space-y-1 mt-2">
+              <a data-module="asset" data-page="access" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-solid fa-plug"></i>
+                <span>接入业务</span>
+              </a>
+            </nav>
+          </div>
+          <!-- Rules Library Sidebar -->
+          <div id="sidebar-rules" class="sidebar-module hidden">
+            <div class="px-3 py-2 text-sm font-medium text-gray-700 flex items-center justify-between">
+              <span>规则库</span>
+              <button class="lg:hidden p-1 rounded hover:bg-gray-100">
+                <i class="fa-solid fa-bars text-xs"></i>
+              </button>
+            </div>
+            <nav class="space-y-1 mt-2">
+              <a data-module="rules" data-page="library" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-solid fa-book"></i>
+                <span>规则库</span>
+              </a>
+              <a data-module="rules" data-page="watermark-lib" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-solid fa-water"></i>
+                <span>水印规则库</span>
+              </a>
+              <a data-module="rules" data-page="templates" class="nav-link flex items-center gap-2 px-3 py-2 rounded hover:bg-primary-50 hover:text-primary-700 cursor-pointer">
+                <i class="fa-regular fa-rectangle-list"></i>
+                <span>规则模版</span>
+              </a>
+            </nav>
+          </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+          <!-- Home Overview -->
+          <section id="view-home" class="view">
+            <div class="flex items-center justify-between">
+              <h1 class="text-xl lg:text-2xl font-semibold">水印与溯源服务概览</h1>
+              <div class="flex gap-2">
+                <button class="px-3 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm"><i class="fa-solid fa-arrow-rotate-right mr-2"></i>刷新</button>
+                <button class="px-3 py-2 rounded border text-sm"><i class="fa-regular fa-circle-question mr-2"></i>帮助</button>
+              </div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-4 mt-4">
+              <!-- Stats Cards -->
+              <div class="bg-white rounded-lg shadow-card p-4">
+                <div class="text-gray-500 text-sm">数据源</div>
+                <div class="mt-2 flex items-end justify-between">
+                  <div class="text-3xl font-bold">12</div>
+                  <i class="fa-solid fa-database text-primary-600 text-2xl"></i>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">已配置的数据源数量</div>
+              </div>
+              <div class="bg-white rounded-lg shadow-card p-4">
+                <div class="text-gray-500 text-sm">水印策略</div>
+                <div class="mt-2 flex items-end justify-between">
+                  <div class="text-3xl font-bold">8</div>
+                  <i class="fa-solid fa-diagram-project text-primary-600 text-2xl"></i>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">已配置的水印策略数量</div>
+              </div>
+              <div class="bg-white rounded-lg shadow-card p-4">
+                <div class="text-gray-500 text-sm">溯源记录</div>
+                <div class="mt-2 flex items-end justify-between">
+                  <div class="text-3xl font-bold">156</div>
+                  <i class="fa-solid fa-flask text-primary-600 text-2xl"></i>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">今日溯源记录数量</div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg mt-6 shadow-card">
+              <div class="p-4 border-b flex items-center gap-2 text-gray-700 text-sm">
+                <i class="fa-solid fa-circle-info text-primary-600"></i>
+                服务状态
+              </div>
+              <div class="grid md:grid-cols-3 gap-4 p-4">
+                <div class="flex items-center gap-3 p-3 border rounded">
+                  <span class="w-8 h-8 rounded bg-green-100 text-green-600 grid place-items-center"><i class="fa-solid fa-check"></i></span>
+                  <div>
+                    <div class="font-medium">水印服务</div>
+                    <div class="text-xs text-gray-500">运行正常</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 p-3 border rounded">
+                  <span class="w-8 h-8 rounded bg-green-100 text-green-600 grid place-items-center"><i class="fa-solid fa-check"></i></span>
+                  <div>
+                    <div class="font-medium">溯源服务</div>
+                    <div class="text-xs text-gray-500">运行正常</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 p-3 border rounded">
+                  <span class="w-8 h-8 rounded bg-green-100 text-green-600 grid place-items-center"><i class="fa-solid fa-check"></i></span>
+                  <div>
+                    <div class="font-medium">数据源连接</div>
+                    <div class="text-xs text-gray-500">连接正常</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Strategy Config -->
+          <section id="view-strategy" class="view">
+            <div class="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h1 class="text-xl lg:text-2xl font-semibold">策略配置</h1>
+                <p class="text-sm text-gray-500 mt-1">为不同业务配置差异化水印策略与规则</p>
+              </div>
+              <div class="flex gap-2">
+                <button id="btnStrategyGuide" class="px-3 py-2 rounded text-primary-600  hover:bg-primary-50 text-sm">
+                  <i class="fa-regular fa-circle-question mr-2"></i>快速指引
+                </button>
+                <button class="px-3 py-2 rounded border text-sm"><i class="fa-solid fa-cloud-arrow-down mr-2"></i>导出</button>
+              </div>
+            </div>
+            <!-- 策略类型页签 -->
+            <div class="mt-4 mb-2">
+              <nav class="flex gap-2 text-sm" id="strategyTabs">
+                <button data-tab="sdk" class="tab-btn px-4 py-2 rounded bg-primary-50 text-primary-700 border-b-2 border-primary-600">SDK策略</button>
+                <button data-tab="jdbc" class="tab-btn px-4 py-2 rounded hover:bg-gray-50">JDBC策略</button>
+              </nav>
+            </div>
+            <!-- 策略列表区（按页签切换） -->
+            <div id="strategyListArea">
+              <!-- 新增策略按钮在当前页签下方 -->
+              <div class="flex items-center justify-start mb-4">
+                <button id="btnAddStrategy" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm">
+                  <i class="fa-solid fa-plus mr-2"></i>新增策略
+                </button>
+              </div>
+              <div class="bg-white rounded-lg shadow-card">
+                <div class="p-4 border-b font-medium">策略列表</div>
+                <div class="p-4">
+                  <div id="strategyList" class="space-y-3"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Trace -->
+          <section id="view-trace" class="view">
+            <div class="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h1 class="text-xl lg:text-2xl font-semibold">水印溯源</h1>
+                <p class="text-sm text-gray-500 mt-1">上传文件或截图，进行水印溯源分析</p>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-card p-4 mt-4">
+              <div class="flex flex-col sm:flex-row items-center gap-4">
+                <div class="flex items-center gap-2 w-full sm:w-auto sm:flex-1">
+                  <input id="traceFile" type="file" class="hidden" />
+                  <div class="flex-1 border rounded px-3 py-2 bg-white cursor-pointer hover:border-primary-500 transition-colors" id="traceFileBrowse">
+                    <div class="flex items-center justify-between">
+                      <span id="traceFileName" class="text-sm text-gray-500 truncate">请选择文件</span>
+                      <i class="fa-solid fa-folder-open text-gray-400 ml-2"></i>
+                    </div>
+                  </div>
+                </div>
+                <button id="btnDoTrace" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm whitespace-nowrap w-full sm:w-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i>开始溯源</button>
+              </div>
+              
+              <!-- 溯源结果模块 -->
+              <div id="traceResult" class="mt-6">
+                <div class="border-t pt-4">
+                  <div class="font-medium mb-4 text-gray-700">溯源结果</div>
+                  <div id="traceResultContent" class="bg-white rounded-lg border border-gray-200 p-5">
+                    <div id="traceResultEmpty" class="text-center text-gray-400 py-8">
+                      <i class="fa-solid fa-inbox text-4xl mb-3"></i>
+                      <p>暂无溯源结果</p>
+                    </div>
+                    <div id="traceResultData" class="hidden">
+                      <div class="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200">
+                        <i class="fa-solid fa-circle-check text-green-600"></i>
+                        <span class="font-medium text-gray-700">检测状态：</span>
+                        <span class="text-green-600 font-semibold" id="traceResultStatus">检测到有效水印</span>
+                      </div>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flex items-start gap-2">
+                          <span class="text-gray-500 min-w-[100px]">来源业务：</span>
+                          <span class="font-medium text-gray-800" id="traceResultSource">-</span>
+                        </div>
+                        <div class="flex items-start gap-2">
+                          <span class="text-gray-500 min-w-[100px]">水印策略：</span>
+                          <span class="font-medium text-gray-800" id="traceResultStrategy">-</span>
+                        </div>
+                        <div class="flex items-start gap-2">
+                          <span class="text-gray-500 min-w-[100px]">水印类型：</span>
+                          <span class="font-medium text-gray-800" id="traceResultWatermarkType">-</span>
+                        </div>
+                        <div class="flex items-start gap-2">
+                          <span class="text-gray-500 min-w-[100px]">水印日期：</span>
+                          <span class="font-medium text-gray-800" id="traceResultWatermarkDate">-</span>
+                        </div>
+                        <div class="flex items-start gap-2 sm:col-span-2">
+                          <span class="text-gray-500 min-w-[100px]">文件名称：</span>
+                          <span class="font-medium text-gray-800 break-words" id="traceResultFileName">-</span>
+                        </div>
+                        <div class="flex items-start gap-2 sm:col-span-2">
+                          <span class="text-gray-500 min-w-[100px]">水印内容：</span>
+                          <div class="flex-1">
+                            <div class="bg-gray-50 rounded-lg p-4 space-y-2 border border-gray-100">
+                              <div class="flex items-center gap-2">
+                                <span class="text-gray-500 text-sm">IP地址：</span>
+                                <span class="font-medium text-gray-800 text-sm" id="traceResultIP">-</span>
+                              </div>
+                              <div class="flex items-center gap-2">
+                                <span class="text-gray-500 text-sm">用户名：</span>
+                                <span class="font-medium text-gray-800 text-sm" id="traceResultUser">-</span>
+                              </div>
+                              <div class="flex items-center gap-2">
+                                <span class="text-gray-500 text-sm">时间戳：</span>
+                                <span class="font-medium text-gray-800 text-sm" id="traceResultTimestamp">-</span>
+                              </div>
+                              <div class="flex items-center gap-2">
+                                <span class="text-gray-500 text-sm">溯源标识：</span>
+                                <span class="font-medium text-gray-800 text-sm" id="traceResultTraceId">-</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-card mt-6">
+              <div class="p-4 border-b font-medium">溯源记录</div>
+              <div class="p-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-gray-500">
+                      <th class="py-2 pr-4">时间</th>
+                      <th class="py-2 pr-4">文件名</th>
+                      <th class="py-2 pr-4">结果</th>
+                      <th class="py-2 pr-4">来源业务</th>
+                      <th class="py-2 pr-4">策略</th>
+                      <th class="py-2 pr-4">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="traceHistory"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Asset Management - Access Businesses -->
+          <section id="view-asset-access" class="view">
+            <div class="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h1 class="text-xl lg:text-2xl font-semibold">接入业务</h1>
+                <p class="text-sm text-gray-500 mt-1">管理和配置需要接入的业务系统,统一业务接入流程。</p>
+              </div>
+              <div class="flex gap-2">
+                <button id="btnAssetGuide" class="px-3 py-2 rounded text-primary-600 hover:bg-primary-50 text-sm"><i class="fa-regular fa-circle-question mr-2"></i>快速指引</button>
+                <div class="relative">
+                  <button id="sdkDropdownBtn" class="px-3 py-2 rounded border text-sm"><i class="fa-solid fa-download mr-2"></i>SDK 下载</button>
+                  <div id="sdkDropdown" class="absolute right-0 mt-2 w-44 bg-white border rounded shadow hidden">
+                    <a class="block px-3 py-2 hover:bg-gray-50" href="javascript:void(0)">Java SDK</a>
+                    <a class="block px-3 py-2 hover:bg-gray-50" href="javascript:void(0)">Node.js SDK</a>
+                    <a class="block px-3 py-2 hover:bg-gray-50" href="javascript:void(0)">Python SDK</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-4 mb-4">
+              <div class="flex items-center gap-2">
+                <button id="btnAddBusiness" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm">
+                  <i class="fa-solid fa-plus mr-2"></i>新增业务
+                </button>
+                <!-- <button class="p-2 rounded border hover:bg-gray-50">
+                  <i class="fa-solid fa-rotate"></i>
+                </button> -->
+                <div class="relative">
+                  <input type="text" placeholder="搜索业务名称、描述" class="pl-10 pr-4 py-2 border rounded text-sm w-64" />
+                  <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-card mt-6">
+              <div class="p-4 border-b font-medium">业务列表</div>
+              <div class="p-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-gray-500 border-b">
+                      <th class="py-2 pr-4">业务名称</th>
+                      <th class="py-2 pr-4">描述</th>
+                      <th class="py-2 pr-4">接入状态</th>
+                      <th class="py-2 pr-4">凭证</th>
+                      <th class="py-2 pr-4">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="assetTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- Rules Library -->
+          <section id="view-rules-library" class="view">
+            <div>
+              <h1 class="text-2xl lg:text-3xl font-semibold mb-2">规则库</h1>
+              <p class="text-sm text-gray-600 mb-3">管理平台内置和自定义的脱敏规则、敏感内容识别规则</p>
+              <div class="flex items-center gap-4 text-sm text-gray-600 mb-4">
+                <span>版本:v1.2.3 (2024-07-21)</span>
+                <a href="javascript:void(0)" class="text-primary-600 hover:underline">检查更新</a>
+                <a href="javascript:void(0)" class="text-primary-600 hover:underline">离线导入</a>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-card mt-4">
+              <div class="p-3 border-b">
+                <nav class="flex flex-wrap gap-2 text-sm" id="rulesTabs">
+                  <button data-tab="rules-audit" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition-colors">识别与脱敏规则库</button>
+                  <button data-tab="rules-watermark" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition-colors">水印规则库</button>
+                  <button data-tab="rules-templates" class="tab-btn px-4 py-2 rounded bg-primary-50 text-primary-700 border-b-2 border-primary-600 transition-colors">规则模版</button>
+                  <button data-tab="rules-dict" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition-colors">特征字典库</button>
+                  <button data-tab="rules-canvas" class="tab-btn px-4 py-2 rounded hover:bg-gray-50 transition-colors">算子画布</button>
+                </nav>
+              </div>
+              <div class="p-4">
+                <!-- Tab content will be dynamically loaded -->
+                <div id="rulesTabContent" class="text-sm text-gray-600">
+                  <!-- Content for rules-templates tab -->
+                  <div id="rules-templates-content" class="grid lg:grid-cols-3 gap-6">
+                    <!-- Left: Template List -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                          <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-medium">模版列表</h3>
+                                <button id="btnAddTemplateInTab" class="px-3 py-1.5 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm">
+                                  <i class="fa-solid fa-plus mr-1"></i>新增模版
+                                </button>
+                              </div>
+                      <div class="relative mb-3 flex items-center gap-2">
+                        <div class="relative flex-1">
+                          <input id="templateSearchInput" type="text" placeholder="搜索模版" class="w-full border rounded px-3 py-2 pl-9 text-sm" />
+                          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        <select id="templateSortSelect" class="border rounded px-2 py-2 text-sm">
+                          <option value="name-asc">名称 ↑</option>
+                          <option value="name-desc">名称 ↓</option>
+                          <option value="source-asc">来源 ↑</option>
+                          <option value="source-desc">来源 ↓</option>
+                        </select>
+                      </div>
+          <div id="templateList" class="space-y-2 max-h-[500px] overflow-y-auto">
+            <button class="w-full text-left px-3 py-2 rounded bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                          <div class="font-medium text-sm">客服系统模版</div>
+                        </button>
+                        <button class="w-full text-left px-3 py-2 rounded bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                          <div class="font-medium text-sm">计费系统模版</div>
+                        </button>
+                        <button class="w-full text-left px-3 py-2 rounded bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                          <div class="font-medium text-sm">网络管理模版</div>
+                        </button>
+                        <button class="w-full text-left px-3 py-2 rounded bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                          <div class="font-medium text-sm">营销系统模版</div>
+                        </button>
+                        <button class="w-full text-left px-3 py-2 rounded bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                          <div class="font-medium text-sm">数据仓库模版</div>
+                        </button>
+                        <button class="w-full text-left px-3 py-2 rounded bg-white hover:bg-gray-100 border border-gray-200 transition-colors">
+                          <div class="font-medium text-sm">报表系统模版</div>
+                        </button>
+                      </div>
+                    </div>
+                    <!-- Right: Template Content -->
+                    <div class="lg:col-span-2 bg-gray-50 rounded-lg p-4">
+                      <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-medium">模版内容</h3>
+                        <div class="text-sm text-gray-500" id="templateMetaInTab">未选择模版</div>
+                      </div>
+                      <div id="templateContentInTab" class="text-sm text-gray-700 min-h-[320px]">
+                      <div class="flex items-center justify-center h-64 text-gray-400 text-sm">
+                        请选择左侧模版查看详情
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Other tab contents will be shown here -->
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Rules - Watermark -->
+          <section id="view-rules-watermark-lib" class="view">
+            <div class="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h1 class="text-xl lg:text-2xl font-semibold">水印规则库</h1>
+                <p class="text-sm text-gray-500 mt-1">管理文本/图片/文档等类型的水印规则</p>
+              </div>
+              <button id="btnAddWMRule" class="px-3 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm"><i class="fa-solid fa-plus mr-2"></i>新增规则</button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-card mt-4 overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-gray-500">
+                    <th class="py-2 pr-4">规则ID</th>
+                    <th class="py-2 pr-4">规则名称</th>
+                    <th class="py-2 pr-4">类型</th>
+                    <th class="py-2 pr-4">水印算法</th>
+                    <th class="py-2 pr-4">加密算法</th>
+                    <th class="py-2 pr-4">来源</th>
+                    <th class="py-2 pr-4">更新时间</th>
+                    <th class="py-2 pr-4">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="wmRulesBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Rules - Templates -->
+          <section id="view-rules-templates" class="view">
+              <div class="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h1 class="text-xl lg:text-2xl font-semibold">规则模版</h1>
+                <p class="text-sm text-gray-500 mt-1">快速复用常见的脱敏与水印规则组合</p>
+              </div>
+              <!-- 新增规则按钮为只读模式隐藏 -->
+              <button id="btnAddTemplateRule" class="px-3 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm"><i class="fa-solid fa-plus mr-2"></i>新增模版</button>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-6 mt-4">
+              <div class="bg-white rounded-lg shadow-card p-0 overflow-hidden">
+                <div class="p-3 border-b font-medium">模版列表</div>
+                <div id="templateList" class="p-3 space-y-2 max-h-[480px] overflow-y-auto scrollbar-hide">
+                  <!-- templates injected by JS -->
+                </div>
+              </div>
+              <div class="lg:col-span-2 bg-white rounded-lg shadow-card p-0 overflow-hidden">
+                <div class="p-3 border-b font-medium flex items-center justify-between">
+                  <span>模版内容</span>
+                  <div class="text-sm text-gray-500" id="templateMeta">未选择模版</div>
+                </div>
+                <div id="templateContent" class="p-4 text-sm text-gray-700 min-h-[320px]">
+                  从左侧选择一个模版以查看详情。
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <!-- Strategy Guide Modal -->
+    <div id="strategyGuideModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg w-full max-w-2xl overflow-hidden">
+        <div class="p-4 border-b flex items-center justify-between">
+          <div class="font-medium">策略配置 · 快速指引</div>
+          <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-4 text-sm leading-6 text-gray-700">
+          <ol class="list-decimal ml-5 space-y-2">
+            <li>新增“接入业务”并完成 SDK/JDBC 对接。</li>
+            <li>在本页面创建策略，设置优先级、范围与规则。</li>
+            <li>在业务侧集成 SDK 并下发策略 ID 生效。</li>
+            <li>通过“水印溯源”验证策略效果并留存审计记录。</li>
+          </ol>
+        </div>
+        <div class="p-4 border-t text-right">
+          <button class="modal-close px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">我已了解</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Asset Guide Modal -->
+    <div id="assetGuideModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg w-full max-w-xl overflow-hidden">
+        <div class="p-4 border-b flex items-center justify-between">
+          <div class="font-medium">接入业务 · 快速指引</div>
+          <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-4 text-sm leading-6 text-gray-700">
+          - 通过 SDK 接入：下载对应语言 SDK，配置鉴权与回调。
+          <br />
+          - 通过 JDBC 接入：配置数据库连接，授予所需只读权限。
+        </div>
+        <div class="p-4 border-t text-right">
+          <button class="modal-close px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trace Detail Modal -->
+    <div id="traceDetailModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg w-full max-w-4xl overflow-hidden max-h-[90vh] overflow-y-auto shadow-lg">
+        <div class="p-4 border-b flex items-center justify-between bg-white">
+          <div class="font-medium text-lg text-gray-800">溯源详情</div>
+          <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="bg-white p-6">
+          <div class="flex items-center gap-2 mb-6 pb-4 border-b border-gray-200">
+            <i class="fa-solid fa-circle-check text-green-600"></i>
+            <span class="font-medium text-gray-700">检测状态：</span>
+            <span class="text-green-600 font-semibold" id="modalTraceStatus">检测到有效水印</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex items-start gap-2">
+              <span class="text-gray-500 min-w-[120px]">来源业务：</span>
+              <span class="font-medium text-gray-800" id="modalTraceSource">-</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="text-gray-500 min-w-[120px]">水印策略：</span>
+              <span class="font-medium text-gray-800" id="modalTraceStrategy">-</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="text-gray-500 min-w-[120px]">水印类型：</span>
+              <span class="font-medium text-gray-800" id="modalTraceWatermarkType">-</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="text-gray-500 min-w-[120px]">水印日期：</span>
+              <span class="font-medium text-gray-800" id="modalTraceWatermarkDate">-</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="text-gray-500 min-w-[120px]">检测时间：</span>
+              <span class="font-medium text-gray-800" id="modalTraceTime">-</span>
+            </div>
+            <div class="flex items-start gap-2 sm:col-span-2">
+              <span class="text-gray-500 min-w-[120px]">文件名称：</span>
+              <span class="font-medium text-gray-800 break-words" id="modalTraceFileName">-</span>
+            </div>
+            <div class="flex items-start gap-2 sm:col-span-2">
+              <span class="text-gray-500 min-w-[120px]">水印内容：</span>
+              <div class="flex-1">
+                <div class="bg-gray-50 rounded-lg p-4 space-y-3 border border-gray-100">
+                  <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-sm min-w-[80px]">IP地址：</span>
+                    <span class="font-medium text-gray-800 text-sm" id="modalTraceIP">-</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-sm min-w-[80px]">用户名：</span>
+                    <span class="font-medium text-gray-800 text-sm" id="modalTraceUser">-</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-sm min-w-[80px]">时间戳：</span>
+                    <span class="font-medium text-gray-800 text-sm" id="modalTraceTimestamp">-</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-sm min-w-[80px]">溯源标识：</span>
+                    <span class="font-medium text-gray-800 text-sm" id="modalTraceTraceId">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="p-4 border-t bg-white text-right">
+          <button class="modal-close px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Business Modal -->
+    <div id="addBusinessModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg w-full max-w-3xl overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div class="p-4 border-b flex items-center justify-between">
+          <div class="font-medium">新增业务</div>
+          <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-4">
+          <!-- Business Type Selection -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">业务类型</label>
+            <div class="flex gap-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="businessType" value="sdk" class="business-type-radio" checked />
+                <span>SDK业务</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="businessType" value="jdbc" class="business-type-radio" />
+                <span>JDBC业务</span>
+              </label>
+            </div>
+          </div>
+          <!-- SDK Form -->
+          <div id="sdkBusinessForm" class="business-form">
+            <form id="sdkForm" class="grid md:grid-cols-2 gap-4 text-sm">
+              <label class="block md:col-span-2">
+                <span class="text-gray-600">业务名称 <span class="text-red-500">*</span></span>
+                <input required class="mt-1 w-full border rounded px-3 py-2" placeholder="如：CRM系统" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">负责人</span>
+                <input class="mt-1 w-full border rounded px-3 py-2" placeholder="如：张三" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">描述</span>
+                <input class="mt-1 w-full border rounded px-3 py-2" placeholder="业务描述" />
+              </label>
+              <label class="block md:col-span-2">
+                <span class="text-gray-600">回调地址</span>
+                <input class="mt-1 w-full border rounded px-3 py-2" placeholder="https://example.com/callback" />
+              </label>
+            </form>
+          </div>
+          <!-- JDBC Form -->
+          <div id="jdbcBusinessForm" class="business-form hidden">
+            <form id="jdbcForm" class="grid md:grid-cols-2 gap-4 text-sm">
+              <label class="block md:col-span-2">
+                <span class="text-gray-600">业务名称 <span class="text-red-500">*</span></span>
+                <input required class="mt-1 w-full border rounded px-3 py-2" placeholder="如：数据仓库" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">描述</span>
+                <input class="mt-1 w-full border rounded px-3 py-2" placeholder="业务描述" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">数据库类型</span>
+                <select class="mt-1 w-full border rounded px-3 py-2">
+                  <option>MySQL</option>
+                  <option>PostgreSQL</option>
+                  <option>SQL Server</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-gray-600">连接串</span>
+                <input class="mt-1 w-full border rounded px-3 py-2" placeholder="jdbc:mysql://host:3306/db" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">账号</span>
+                <input class="mt-1 w-full border rounded px-3 py-2" placeholder="用户名" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">密码</span>
+                <input type="password" class="mt-1 w-full border rounded px-3 py-2" placeholder="密码" />
+              </label>
+            </form>
+          </div>
+        </div>
+        <div class="p-4 border-t flex justify-end gap-2">
+          <button class="modal-close px-4 py-2 rounded border hover:bg-gray-50">取消</button>
+          <button class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Strategy Modal -->
+    <div id="addStrategyModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg w-full max-w-3xl overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div class="p-4 border-b flex items-center justify-between">
+          <div class="font-medium">新增水印策略</div>
+          <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-4">
+          <form id="strategyForm" class="space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-gray-600">优先级 <span class="text-red-500">*</span></span>
+                <input id="strategyPriority" required type="number" class="mt-1 w-full border rounded px-3 py-2" placeholder="1" />
+              </label>
+              <label class="block">
+                <span class="text-gray-600">策略名称 <span class="text-red-500">*</span></span>
+                <input id="strategyName" required class="mt-1 w-full border rounded px-3 py-2" placeholder="外发文档水印" />
+              </label>
+            </div>
+            <label class="block">
+              <span class="text-gray-600">描述</span>
+              <input id="strategyDesc" class="mt-1 w-full border rounded px-3 py-2" placeholder="说明该策略的应用场景" />
+            </label>
+
+            <div id="embedScopeArea">
+              <label class="block">
+                <span class="text-gray-600">嵌入范围</span>
+                <select id="embedScopeSelect" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="all">全部业务</option>
+                  <option value="specific">部分业务</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="embedBizArea" class="hidden">
+              <div class="grid grid-cols-2 gap-4 items-end">
+                <label class="block">
+                  <span class="text-gray-600">嵌入范围</span>
+                  <select id="embedScopeSelectSpecific" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="specific">部分业务</option>
+                    <option value="all">全部业务</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-gray-600">接入业务</span>
+                  <select id="embedBizSelect" class="mt-1 w-full border rounded px-3 py-2"></select>
+                </label>
+              </div>
+              <div class="grid grid-cols-3 gap-4 items-end mt-4">
+                <label class="block jdbc-only hidden">
+                  <span class="text-gray-600">数据源</span>
+                  <input id="jdbcDataSource" class="mt-1 w-full border rounded px-3 py-2" placeholder="数据源名称或连接串" />
+                </label>
+                <label class="block jdbc-only hidden">
+                  <span class="text-gray-600">数据账号</span>
+                  <input id="jdbcDataAccount" class="mt-1 w-fulborder rounded px-3 py-2" placeholder="账号信息" />
+                </label>
+              </div>
+            </div>
+
+            <div id="builtinRuleArea">
+              <label class="block">
+                <span class="text-gray-600">水印规则</span>
+                <select id="watermarkRuleTypeSelect" class="mt-1 w-full border rounded px-3 py-2">
+                <option value="builtin">内置水印规则</option>
+                <option value="template">模版水印规则</option>
+              </select>
+              </label>
+            </div>
+
+            <div id="templateRuleArea" class="hidden">
+              <div class="grid grid-cols-2 gap-4 items-end">
+                <label class="block">
+                  <span class="text-gray-600">水印规则</span>
+                  <select id="strategyRuleSelectTemplate" class="mt-1 w-full border rounded px-3 py-2">
+                    <!-- options populated by JS -->
+                    <option value="template">模版水印规则</option>
+                    <option value="builtin">内置水印规则</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-gray-600">规则模版</span>
+                  <select id="strategyTemplateSelect" class="mt-1 w-full border rounded px-3 py-2">
+                    <!-- options populated by JS -->
+                  </select>
+                </label>
+              </div>
+            </div>
+
+          </form>
+        </div>
+        <div class="p-4 border-t flex justify-end gap-2">
+          <button type="button" class="modal-close px-4 py-2 rounded border hover:bg-gray-50">取消</button>
+          <button type="submit" form="strategyForm" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">保存策略</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Watermark Rule Modal -->
+    <div id="addWMRuleModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg w-full max-w-4xl overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div class="p-4 border-b flex items-center justify-between">
+          <div class="font-medium" id="wmRuleModalTitle">新增水印规则</div>
+          <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-4">
+          <form id="wmRuleForm" class="space-y-6 text-sm">
+            <!-- Basic Information -->
+            <fieldset>
+              <legend class="font-medium text-lg">基本信息</legend>
+              <label class="block">
+                <span class="text-gray-600">规则名称 <span class="text-red-500">*</span></span>
+                <input id="wmRuleName" required class="mt-1 w-full border rounded px-3 py-2" placeholder="如：文档外发水印" />
+              </label>
+              <div class="grid grid-cols-2 gap-4 mt-4">
+                <label class="block">
+                  <span class="text-gray-600">水印算法</span>
+                  <select id="wmAlgorithm" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="frequency">频域变换算法</option>
+                    <option value="identifier">标识水印算法</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-gray-600">水印载体</span>
+                  <select id="wmCarrier" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="jpg">JPG</option>
+                    <option value="png">PNG</option>
+                    <option value="word">Word</option>
+                    <option value="pdf">PDF</option>
+                    <option value="ppt">PPT</option>
+                    <option value="web">Web</option>
+                    <option value="app">APP</option>
+                  </select>
+                </label>
+              </div>
+              <label class="block mt-4">
+                <span class="text-gray-600">描述</span>
+                <textarea id="wmDescription" class="mt-1 w-full border rounded px-3 py-2" placeholder="描述输入，不超过100字" maxlength="100"></textarea>
+              </label>
+            </fieldset>
+              
+            <div class="flex items-center gap-4 mt-4">
+                <span class="text-gray-600">水印类型</span>
+                <label class="flex items-center gap-2"><input type="checkbox" id="wmTypeClear" /> 明水印</label>
+                <label class="flex items-center gap-2"><input type="checkbox" id="wmTypeSecret" /> 暗水印</label>
+            </div>
+            <!-- Watermark Settings -->
+            <fieldset>
+              <!-- Clear Watermark Settings -->
+              <div id="clearWatermarkSettings" class="hidden">
+                <div class="font-medium text-lg mb-4">明水印设置</div>
+                <div class="grid grid-cols-2 gap-6">
+                  <!-- Left: Form Inputs -->
+                  <div class="space-y-4">
+                    <label class="block">
+                      <span class="text-gray-600">水印内容</span>
+                      <input type="text" id="clearWatermarkContent" class="mt-1 w-full border rounded px-3 py-2" placeholder="请输入水印文本" />
+                    </label>
+                    <div class="grid grid-cols-2 gap-4">
+                      <label class="block">
+                        <span class="text-gray-600">字体样式</span>
+                        <select id="clearFontFamily" class="mt-1 w-full border rounded px-3 py-2">
+                          <option value="Arial">Arial</option>
+                          <option value="Helvetica">Helvetica</option>
+                          <option value="Times New Roman">Times New Roman</option>
+                          <option value="Courier New">Courier New</option>
+                          <option value="Verdana">Verdana</option>
+                          <option value="Georgia">Georgia</option>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="text-gray-600">字体大小</span>
+                        <select id="clearFontSize" class="mt-1 w-full border rounded px-3 py-2">
+                          <option value="12">12px</option>
+                          <option value="14">14px</option>
+                          <option value="16">16px</option>
+                          <option value="18">18px</option>
+                          <option value="20">20px</option>
+                          <option value="24">24px</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <label class="block">
+                        <span class="text-gray-600">字体样式</span>
+                        <select id="clearFontWeight" class="mt-1 w-full border rounded px-3 py-2">
+                          <option value="normal">正常</option>
+                          <option value="bold">加粗</option>
+                          <option value="italic">倾斜</option>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="text-gray-600">字体颜色</span>
+                        <input type="color" id="clearFontColor" class="mt-1 w-full border rounded px-3 py-2 h-10" />
+                      </label>
+                    </div>
+                    <label class="block">
+                      <span class="text-gray-600">透明度</span>
+                      <div class="flex items-center gap-2 mt-1">
+                        <input type="range" id="clearOpacity" class="flex-1" min="0" max="1" step="0.01" />
+                        <span id="clearOpacityValue" class="text-sm text-gray-600 w-12">50%</span>
+                      </div>
+                    </label>
+                    <div class="grid grid-cols-2 gap-4">
+                      <label class="block">
+                        <span class="text-gray-600">排列方式</span>
+                        <select id="clearArrangement" class="mt-1 w-full border rounded px-3 py-2">
+                          <option value="tilt">倾斜</option>
+                          <option value="horizontal">水平</option>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="text-gray-600">角度</span>
+                        <input type="number" id="clearAngle" class="mt-1 w-full border rounded px-3 py-2" min="-45" max="45" value="0" />
+                      </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <label class="block">
+                        <span class="text-gray-600">分布位置</span>
+                        <select id="clearPosition" class="mt-1 w-full border rounded px-3 py-2">
+                          <option value="center">画布中心</option>
+                          <option value="bottom-left">左下角</option>
+                          <option value="bottom-right">右下角</option>
+                          <option value="top">顶部</option>
+                          <option value="bottom">底部</option>
+                          <option value="right">右侧</option>
+                          <option value="left">左侧</option>
+                          <option value="top-left">左上角</option>
+                          <option value="top-right">右上角</option>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="text-gray-600">水平间距</span>
+                        <input type="number" id="clearHorizontalSpacing" class="mt-1 w-full border rounded px-3 py-2" min="0" max="4096" value="0" />
+                      </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <label class="block">
+                        <span class="text-gray-600">垂直间距</span>
+                        <input type="number" id="clearVerticalSpacing" class="mt-1 w-full border rounded px-3 py-2" min="0" max="4096" value="0" />
+                      </label>
+                      <label class="block">
+                        <span class="text-gray-600">背景颜色</span>
+                        <input type="color" id="clearBgColor" class="mt-1 w-full border rounded px-3 py-2 h-10" />
+                      </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                      <label class="block">
+                        <span class="text-gray-600">图片宽度</span>
+                        <input type="number" id="clearImgWidth" class="mt-1 w-full border rounded px-3 py-2" min="1" />
+                      </label>
+                      <label class="block">
+                        <span class="text-gray-600">图片高度</span>
+                        <input type="number" id="clearImgHeight" class="mt-1 w-full border rounded px-3 py-2" min="1" />
+                      </label>
+                    </div>
+                  </div>
+                  <!-- Right: Preview -->
+                  <div class="space-y-4">
+                    <div class="font-medium">水印样式预览</div>
+                    <div class="border rounded-lg p-4 bg-gray-50 min-h-[300px] relative">
+                      <div class="absolute top-2 left-2 text-md text-gray-600">预览效果</div>
+                      <div id="watermarkPreview" class="w-full h-full relative">
+                        <div id="previewText" class="absolute inline-block px-4 py-2 rounded" style="left: 50%; top: 50%; transform: translate(-50%, -50%);">
+                          示例水印文本
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            
+              <!-- Secret Watermark Settings -->
+              <div id="secretWatermarkSettings" class="hidden mt-6">
+                <fieldset>
+                  <legend class="font-medium text-lg mb-6">暗水印设置</legend>
+                  <div class="grid grid-cols-2 gap-4">
+                    <label class="block">
+                      <span class="text-gray-600">算法模式</span>
+                      <select id="secretAlgorithmMode" class="mt-1 w-full border rounded px-3 py-2">
+                        <option value="dct">DCT</option>
+                        <option value="dwt">DWT</option>
+                      </select>
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+            </fieldset>
+
+            <div class="flex justify-end gap-2">
+              <button type="button" class="modal-close px-4 py-2 rounded border hover:bg-gray-50">取消</button>
+              <button type="submit" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Strategy Form Template (hidden) -->
+    <template id="strategyFormTpl">
+      <form class="rounded border p-4 space-y-3 text-sm">
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="text-gray-600">优先级</span>
+            <input required type="number" class="mt-1 w-full border rounded px-3 py-2" placeholder="1" />
+          </label>
+          <label class="block">
+            <span class="text-gray-600">策略名称</span>
+            <input required class="mt-1 w-full border rounded px-3 py-2" placeholder="外发文档水印" />
+          </label>
+        </div>
+        <label class="block">
+          <span class="text-gray-600">描述</span>
+          <input class="mt-1 w-full border rounded px-3 py-2" placeholder="说明该策略的应用场景" />
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="text-gray-600">策略范围</span>
+            <select class="mt-1 w-full border rounded px-3 py-2">
+              <option>文本</option>
+              <option>图片</option>
+              <option>文档</option>
+              <option>数据库结果集</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-gray-600">接入业务</span>
+            <select class="mt-1 w-full border rounded px-3 py-2">
+              <option>CRM系统</option>
+              <option>ERP系统</option>
+              <option>数据门户</option>
+            </select>
+          </label>
+        </div>
+        <label class="block">
+          <span class="text-gray-600">策略规则</span>
+          <input class="mt-1 w-full border rounded px-3 py-2" placeholder="如：透明度 20%，文案含用户名与时间" />
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="text-gray-600">创建时间</span>
+            <input type="datetime-local" class="mt-1 w-full border rounded px-3 py-2" />
+          </label>
+          <div class="flex items-end justify-end gap-2">
+            <button type="reset" class="px-3 py-2 rounded border">重置</button>
+            <button class="px-3 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">保存策略</button>
+          </div>
+        </div>
+      </form>
+    </template>
+
+    <script>
+      // Two-level router: module (top nav) + page (sidebar nav)
+      const routeMap = {
+        watermark: {
+          home: 'view-home',
+          strategy: 'view-strategy',
+          trace: 'view-trace'
+        },
+        asset: {
+          access: 'view-asset-access'
+        },
+        rules: {
+          library: 'view-rules-library',
+          'watermark-lib': 'view-rules-watermark-lib',
+          templates: 'view-rules-templates'
+        }
+      };
+
+      let currentModule = 'watermark';
+      let currentPage = 'home';
+
+      function setActiveModule(module) {
+        currentModule = module;
+        const sidebar = document.getElementById('sidebar');
+        // Hide sidebar for rules module - force hide on all screen sizes
+        if (module === 'rules') {
+          sidebar.classList.add('hidden');
+          sidebar.style.display = 'none'; // Force hide
+        } else {
+          sidebar.style.display = ''; // Reset display
+          sidebar.classList.remove('hidden');
+          // Update sidebar
+          document.querySelectorAll('.sidebar-module').forEach(sb => sb.classList.add('hidden'));
+          const activeSidebar = document.getElementById(`sidebar-${module}`);
+          if (activeSidebar) activeSidebar.classList.remove('hidden');
+        }
+        // Reset to first page of module
+        const firstPage = Object.keys(routeMap[module])[0];
+        setActivePage(module, firstPage);
+      }
+
+      function setActivePage(module, page) {
+        currentPage = page;
+        // Hide all views
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        // Show target view
+        const viewId = routeMap[module]?.[page];
+        if (viewId) {
+          const view = document.getElementById(viewId);
+          if (view) view.classList.add('active');
+        }
+        // Update sidebar nav
+        document.querySelectorAll('.nav-link').forEach(link => {
+          link.classList.remove('bg-primary-50','text-primary-700','active');
+          if (link.dataset.module === module && link.dataset.page === page) {
+            link.classList.add('bg-primary-50','text-primary-700','active');
+          }
+        });
+        // Update URL hash
+        location.hash = `${module}/${page}`;
+      }
+
+      // 初始化路由
+      function initRouter() {
+        // 从 URL hash 恢复路由状态
+        const hash = location.hash.slice(1); // 移除 #
+        if (hash) {
+          const [module, page] = hash.split('/');
+          if (module && routeMap[module]) {
+            setActiveModule(module);
+            if (page && routeMap[module][page]) {
+              setActivePage(module, page);
+            }
+          }
+        } else {
+          // 默认显示 watermark 模块的 home 页面
+          setActiveModule('watermark');
+          setActivePage('watermark', 'home');
+        }
+      }
+
+      function initWMRuleFormInteractions() {
+        // 优先在弹窗内查找控件，避免与页面上同名 id 冲突
+        const modal = document.getElementById('addWMRuleModal');
+        const wmTypeClearCheckbox = modal.querySelector('#wmTypeClear');
+        const wmTypeSecretCheckbox = modal.querySelector('#wmTypeSecret');
+        const clearWatermarkPanel = modal.querySelector('#clearWatermarkSettings');
+        const secretWatermarkPanel = modal.querySelector('#secretWatermarkSettings');
+
+        if (wmTypeClearCheckbox && clearWatermarkPanel) {
+          // initialize visibility correctly
+          clearWatermarkPanel.classList.toggle('hidden', !wmTypeClearCheckbox.checked);
+          wmTypeClearCheckbox.addEventListener('change', () => {
+            clearWatermarkPanel.classList.toggle('hidden', !wmTypeClearCheckbox.checked);
+          });
+        }
+
+        if (wmTypeSecretCheckbox && secretWatermarkPanel) {
+          secretWatermarkPanel.classList.toggle('hidden', !wmTypeSecretCheckbox.checked);
+          wmTypeSecretCheckbox.addEventListener('change', () => {
+            secretWatermarkPanel.classList.toggle('hidden', !wmTypeSecretCheckbox.checked);
+          });
+        }
+
+        // 水印算法选择控制暗水印算法模式显示
+        const wmAlgSelect = modal.querySelector('#wmAlgorithm');
+        const secretAlgMode = modal.querySelector('#secretAlgorithmMode');
+
+        if (wmAlgSelect && secretAlgMode) {
+          wmAlgSelect.addEventListener('change', () => {
+            // only show secret algorithm mode when frequency algorithm is selected
+            const show = wmAlgSelect.value === 'frequency';
+            if (secretAlgMode.parentElement) secretAlgMode.parentElement.classList.toggle('hidden', !show);
+          });
+        }
+
+        // Real-time preview updates
+        const previewText = modal.querySelector('#previewText');
+        const opacityValue = modal.querySelector('#clearOpacityValue');
+
+        // Function to update preview
+        function updatePreview() {
+          if (!previewText) return;
+
+          const content = modal.querySelector('#clearWatermarkContent')?.value || '示例水印文本';
+          const fontFamily = modal.querySelector('#clearFontFamily')?.value || 'Arial';
+          const fontSize = modal.querySelector('#clearFontSize')?.value || '16';
+          const fontWeight = modal.querySelector('#clearFontWeight')?.value || 'normal';
+          const fontColor = modal.querySelector('#clearFontColor')?.value || '#000000';
+          const opacity = modal.querySelector('#clearOpacity')?.value || '0.5';
+          const angle = modal.querySelector('#clearAngle')?.value || '0';
+          const position = modal.querySelector('#clearPosition')?.value || 'center';
+          const horizontalSpacing = parseInt(modal.querySelector('#clearHorizontalSpacing')?.value) || 0;
+          const verticalSpacing = parseInt(modal.querySelector('#clearVerticalSpacing')?.value) || 0;
+
+          previewText.textContent = content;
+          previewText.style.fontFamily = fontFamily;
+          previewText.style.fontSize = fontSize + 'px';
+          previewText.style.fontWeight = fontWeight;
+          previewText.style.color = fontColor;
+          previewText.style.opacity = opacity;
+          
+          // Apply position styles
+          previewText.style.position = 'absolute';
+          previewText.style.transformOrigin = 'center';
+          
+          // Reset position styles
+          previewText.style.marginLeft = '';
+          previewText.style.marginTop = '';
+          previewText.style.marginRight = '';
+          previewText.style.marginBottom = '';
+          previewText.style.alignSelf = '';
+          previewText.parentElement.style.justifyContent = '';
+          previewText.parentElement.style.alignItems = '';
+          
+          // 设置预览文本的中心点
+          previewText.style.left = '50%';
+          previewText.style.top = '50%';
+          
+          // Apply position and spacing styles
+          // 所有位置都相对于中心点进行定位
+          let translateX = 0;
+          let translateY = 0;
+          
+          switch(position) {
+            case 'center':
+              // 保持在中心位置
+              translateX = 0;
+              translateY = 0;
+              break;
+            case 'top-left':
+              translateX = -horizontalSpacing;
+              translateY = -verticalSpacing;
+              break;
+            case 'top-right':
+              translateX = horizontalSpacing;
+              translateY = -verticalSpacing;
+              break;
+            case 'bottom-left':
+              translateX = -horizontalSpacing;
+              translateY = verticalSpacing;
+              break;
+            case 'bottom-right':
+              translateX = horizontalSpacing;
+              translateY = verticalSpacing;
+              break;
+            case 'top':
+              translateX = 0;
+              translateY = -verticalSpacing;
+              break;
+            case 'bottom':
+              translateX = 0;
+              translateY = verticalSpacing;
+              break;
+            case 'left':
+              translateX = -horizontalSpacing;
+              translateY = 0;
+              break;
+            case 'right':
+              translateX = horizontalSpacing;
+              translateY = 0;
+              break;
+          }
+          
+          // Apply rotation and position
+          // 确保始终相对于画布中心定位
+          previewText.style.transform = `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) rotate(${angle}deg)`;
+
+          // Update percentage display
+          if (opacityValue) {
+            opacityValue.textContent = Math.round(parseFloat(opacity) * 100) + '%';
+          }
+        }
+        
+        // 初始化时确保预览文本在中心
+        if (previewText) {
+          previewText.style.left = '50%';
+          previewText.style.top = '50%';
+          previewText.style.transform = 'translate(-50%, -50%)';
+        }
+
+        // Function to adjust spacing based on position selection
+        function adjustSpacingByPosition() {
+          const positionSelect = modal.querySelector('#clearPosition');
+          const horizontalSpacingInput = modal.querySelector('#clearHorizontalSpacing');
+          const verticalSpacingInput = modal.querySelector('#clearVerticalSpacing');
+          
+          if (!positionSelect || !horizontalSpacingInput || !verticalSpacingInput) return;
+          
+          // Set recommended spacing values based on position
+          // 所有位置相对于中心点进行设置
+          switch(positionSelect.value) {
+            case 'center':
+              horizontalSpacingInput.value = '0';
+              verticalSpacingInput.value = '0';
+              break;
+            case 'top-left':
+              horizontalSpacingInput.value = '100';
+              verticalSpacingInput.value = '100';
+              break;
+            case 'top-right':
+              horizontalSpacingInput.value = '100';
+              verticalSpacingInput.value = '100';
+              break;
+            case 'bottom-left':
+              horizontalSpacingInput.value = '100';
+              verticalSpacingInput.value = '100';
+              break;
+            case 'bottom-right':
+              horizontalSpacingInput.value = '100';
+              verticalSpacingInput.value = '100';
+              break;
+            case 'top':
+              horizontalSpacingInput.value = '0';
+              verticalSpacingInput.value = '100';
+              break;
+            case 'bottom':
+              horizontalSpacingInput.value = '0';
+              verticalSpacingInput.value = '100';
+              break;
+            case 'left':
+              horizontalSpacingInput.value = '100';
+              verticalSpacingInput.value = '0';
+              break;
+            case 'right':
+              horizontalSpacingInput.value = '100';
+              verticalSpacingInput.value = '0';
+              break;
+            default:
+              horizontalSpacingInput.value = '0';
+              verticalSpacingInput.value = '0';
+          }
+          
+          // Update preview with new spacing values
+          updatePreview();
+        }
+
+        // Bind events to form inputs for real-time preview
+        const inputs = [
+          '#clearWatermarkContent',
+          '#clearFontFamily',
+          '#clearFontSize',
+          '#clearFontWeight',
+          '#clearFontColor',
+          '#clearOpacity',
+          '#clearAngle',
+          '#clearHorizontalSpacing',
+          '#clearVerticalSpacing'
+        ];
+
+        inputs.forEach(selector => {
+          const el = modal.querySelector(selector);
+          if (el) {
+            el.addEventListener('input', updatePreview);
+            el.addEventListener('change', updatePreview);
+          }
+        });
+
+        // Bind special event to position select to adjust spacing
+        const positionSelect = modal.querySelector('#clearPosition');
+        if (positionSelect) {
+          positionSelect.addEventListener('change', function() {
+            adjustSpacingByPosition();
+            updatePreview();
+          });
+        }
+
+        // Initial preview update
+        updatePreview();
+      }
+      function bindModal(triggerId, modalId) {
+        const trigger = document.getElementById(triggerId);
+        const modal = document.getElementById(modalId);
+        if (!trigger || !modal) return;
+        const closeEls = modal.querySelectorAll('.modal-close');
+        trigger.addEventListener('click', () => {
+          // If opening the Add Strategy modal, ensure form is reset and prepared
+          try { if (modalId === 'addStrategyModal' && typeof prepareStrategyModal === 'function') prepareStrategyModal(); } catch(e) {}
+          modal.classList.remove('hidden');
+        });
+        closeEls.forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+      }
+      bindModal('btnStrategyGuide', 'strategyGuideModal');
+      bindModal('btnAssetGuide', 'assetGuideModal');
+      bindModal('btnAddBusiness', 'addBusinessModal');
+      bindModal('btnAddStrategy', 'addStrategyModal');
+      bindModal('btnAddWMRule', 'addWMRuleModal');
+
+      // Add Business Modal - Business Type Toggle
+      const businessTypeRadios = document.querySelectorAll('.business-type-radio');
+      const sdkBusinessForm = document.getElementById('sdkBusinessForm');
+      const jdbcBusinessForm = document.getElementById('jdbcBusinessForm');
+      businessTypeRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+          if (radio.value === 'sdk') {
+            sdkBusinessForm.classList.remove('hidden');
+            jdbcBusinessForm.classList.add('hidden');
+          } else {
+            sdkBusinessForm.classList.add('hidden');
+            jdbcBusinessForm.classList.remove('hidden');
+          }
+        });
+      });
+
+      // Strategy: add form and list handling
+  const strategyListEl = document.getElementById('strategyList');
+  const btnAddStrategy = document.getElementById('btnAddStrategy');
+      // 策略数据按类型分组
+      const strategies = {
+        sdk: [
+          { priority: '1', name: '策略A - 对外共享报表', desc: '对外报表导出时添加半透明文档水印', scope: '文档', biz: '数据门户', rule: '对外共享报表', created: '2025-11-10 10:00' }
+        ],
+        jdbc: [
+          { priority: '2', name: '策略B - 图片外发保护', desc: '外发图片添加强水印并标注责任人', scope: '图片', biz: 'CRM系统', rule: '图片外发', created: '2025-11-10 11:00' }
+        ]
+      };
+      let currentStrategyTab = 'sdk';
+
+      function renderStrategyRow(item, idx, tbody) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        tr.innerHTML = `
+          <td class="px-3 py-2 text-sm">${item.priority || '-'}</td>
+          <td class="px-3 py-2 text-sm font-medium">${item.name || '-'}</td>
+          <td class="px-3 py-2 text-sm">${item.scope || item.embedScope || '-'}</td>
+          <td class="px-3 py-2 text-sm">${item.biz || '-'}</td>
+          <td class="px-3 py-2 text-sm">${item.rule || item.template || '-'}</td>
+          <td class="px-3 py-2 text-sm text-gray-500">${item.created || '-'}</td>
+          <td class="px-3 py-2 text-sm">
+            <button class="text-primary-600 hover:underline" data-action="edit" data-idx="${idx}">编辑</button>
+            <span class="mx-2 text-gray-300">|</span>
+            <button class="text-red-600 hover:underline" data-action="del" data-idx="${idx}">删除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      function refreshStrategyTable() {
+        if (!strategyListEl) return;
+        // Render as a simple table with columns: 优先级, 名称, 范围, 业务, 规则, 创建时间, 操作
+        strategyListEl.innerHTML = `
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead>
+                <tr class="text-xs text-gray-600 border-b">
+                  <th class="px-3 py-2">优先级</th>
+                  <th class="px-3 py-2">名称</th>
+                  <th class="px-3 py-2">范围</th>
+                  <th class="px-3 py-2">业务</th>
+                  <th class="px-3 py-2">规则</th>
+                  <th class="px-3 py-2">创建时间</th>
+                  <th class="px-3 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody id="strategyTableBody"></tbody>
+            </table>
+          </div>
+        `;
+        const tbody = document.getElementById('strategyTableBody');
+        (strategies[currentStrategyTab] || []).forEach((s, i) => renderStrategyRow(s, i, tbody));
+      }
+
+      // Strategy form submit handler
+      const strategyForm = document.getElementById('strategyForm');
+      const addStrategyModal = document.getElementById('addStrategyModal');
+      if (strategyForm) {
+        strategyForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const priority = document.getElementById('strategyPriority').value;
+          const name = document.getElementById('strategyName').value;
+          const desc = document.getElementById('strategyDesc').value;
+          const watermarkType = (document.querySelector('input[name="watermarkType"]:checked') || {}).value || 'clear';
+          const embedScope = document.getElementById('embedScopeSelect').value;
+          const biz = embedScope === 'specific' ? document.getElementById('embedBizSelect').value : '全部业务';
+          const jdbcDataSource = document.getElementById('jdbcDataSource') ? document.getElementById('jdbcDataSource').value : '';
+          const jdbcDataAccount = document.getElementById('jdbcDataAccount') ? document.getElementById('jdbcDataAccount').value : '';
+          const templateKind = (document.querySelector('input[name="strategyTemplateKind"]:checked') || {}).value || 'builtin';
+          const template = document.getElementById('strategyTemplateSelect').value;
+          const watermarkRuleType = document.getElementById('watermarkRuleTypeSelect').value || 'builtin';
+          const rule = watermarkRuleType === 'builtin' ? document.getElementById('strategyRuleSelect').value : document.getElementById('strategyRuleSelectTemplate').value;
+          const created = document.getElementById('strategyCreated').value || new Date().toLocaleString();
+          const record = { priority, name, desc, watermarkType, embedScope, biz, jdbcDataSource, jdbcDataAccount, templateKind, template, watermarkRuleType, rule, created };
+          strategies[currentStrategyTab].push(record);
+          refreshStrategyTable();
+          strategyForm.reset();
+          addStrategyModal.classList.add('hidden');
+        });
+      }
+
+      if (strategyListEl) {
+        strategyListEl.addEventListener('click', (e) => {
+          const btn = e.target.closest('button');
+          if (!btn) return;
+          const idx = Number(btn.dataset.idx);
+          const action = btn.dataset.action;
+          if (action === 'del') {
+            strategies[currentStrategyTab].splice(idx, 1);
+            refreshStrategyTable();
+          }
+        });
+      }
+      // 策略页签切换逻辑
+      const strategyTabs = document.getElementById('strategyTabs');
+      if (strategyTabs) {
+        strategyTabs.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-tab]');
+          if (!btn) return;
+          strategyTabs.querySelectorAll('button').forEach(b => b.classList.remove('bg-primary-50','text-primary-700','border-b-2','border-primary-600'));
+          btn.classList.add('bg-primary-50','text-primary-700','border-b-2','border-primary-600');
+          currentStrategyTab = btn.dataset.tab;
+          refreshStrategyTable();
+          // reset modal fields when switching tabs to avoid cross-tab residue
+          try { prepareStrategyModal(); } catch (e) {}
+        });
+      }
+      // 初始化策略列表
+      refreshStrategyTable();
+
+      // Prepare strategy modal fields depending on current tab (SDK/JDBC)
+      function prepareStrategyModal() {
+        // 打开新增策略时重置表单参数
+        const strategyForm = document.getElementById('strategyForm');
+        if (strategyForm) strategyForm.reset();
+        const embedBizArea = document.getElementById('embedBizArea');
+        const embedScopeArea = document.getElementById('embedScopeArea');
+        const embedScopeSelect = document.getElementById('embedScopeSelect');
+        const embedBizSelect = document.getElementById('embedBizSelect');
+        const jdbcDataSourceWraps = document.querySelectorAll('.jdbc-only');
+        // populate business select
+        if (embedBizSelect) {
+          embedBizSelect.innerHTML = assetData.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+        }
+        // show/hide based on selection
+        if (embedScopeSelect) {
+          // default to 'all' and hide dependent areas to avoid retaining previous selections
+          embedScopeSelect.value = 'all';
+          embedBizArea && embedBizArea.classList.add('hidden');
+          embedScopeArea && embedScopeArea.classList.remove('hidden');
+          jdbcDataSourceWraps.forEach(w => w.classList.add('hidden'));
+          
+          embedScopeSelect.onchange = () => {
+            if (embedScopeSelect.value === 'specific') {
+              // 当选择"部分业务"时，隐藏原始的嵌入范围下拉框，显示包含两个下拉框的区域
+              embedScopeArea && embedScopeArea.classList.add('hidden');
+              embedBizArea && embedBizArea.classList.remove('hidden');
+              // show jdbc-specific inputs only for JDBC tab
+              jdbcDataSourceWraps.forEach(w => {
+                if (currentStrategyTab === 'jdbc') w.classList.remove('hidden'); else w.classList.add('hidden');
+              });
+            } else {
+              // 当选择"全部业务"时，显示原始的嵌入范围下拉框，隐藏部分业务区域
+              embedScopeArea && embedScopeArea.classList.remove('hidden');
+              embedBizArea && embedBizArea.classList.add('hidden');
+              jdbcDataSourceWraps.forEach(w => w.classList.add('hidden'));
+            }
+          };
+          
+          // 处理部分业务区域内选择"全部业务"的情况
+          const embedScopeSelectSpecific = document.getElementById('embedScopeSelectSpecific');
+          if (embedScopeSelectSpecific) {
+            embedScopeSelectSpecific.onchange = () => {
+              if (embedScopeSelectSpecific.value === 'all') {
+                // 当在部分业务区域选择"全部业务"时，显示原始的嵌入范围下拉框，隐藏部分业务区域
+                embedScopeArea && embedScopeArea.classList.remove('hidden');
+                embedBizArea && embedBizArea.classList.add('hidden');
+                jdbcDataSourceWraps.forEach(w => w.classList.add('hidden'));
+                
+                // 同步主下拉框的值
+                if (embedScopeSelect) {
+                  embedScopeSelect.value = 'all';
+                  // 触发主下拉框的change事件以确保UI状态一致
+                  embedScopeSelect.dispatchEvent(new Event('change'));
+                }
+              }
+            };
+          }
+          
+          // ensure onchange applied to reflect initial state
+          try { embedScopeSelect.onchange(); } catch (e) {}
+        }
+
+        // Populate default template select
+        populateStrategyTemplateSelect('builtin');
+        // Populate rule selects
+        populateStrategyRuleSelect();
+      }
+
+      // When clicking 新增策略, prepare modal with context
+      const btnAddStrategyEl = document.getElementById('btnAddStrategy');
+      if (btnAddStrategyEl) {
+        btnAddStrategyEl.addEventListener('click', () => {
+          // prepare fields
+          prepareStrategyModal();
+          // show modal handled by existing bindModal
+        });
+      }
+
+      // Trace upload + history
+      const traceInput = document.getElementById('traceFile');
+      const traceFileBrowse = document.getElementById('traceFileBrowse');
+      const traceFileName = document.getElementById('traceFileName');
+      const traceResult = document.getElementById('traceResult');
+      const traceResultEmpty = document.getElementById('traceResultEmpty');
+      const traceResultData = document.getElementById('traceResultData');
+      const traceHistory = document.getElementById('traceHistory');
+      
+      // 存储溯源记录数据
+      const traceRecords = [];
+      
+      // 文件选择浏览框点击事件
+      traceFileBrowse.addEventListener('click', () => traceInput.click());
+      traceInput.addEventListener('change', () => {
+        traceFileName.textContent = traceInput.files[0] ? traceInput.files[0].name : '请选择文件';
+      });
+      
+      // 显示溯源结果的函数（用于页面显示）
+      const displayTraceResult = (data) => {
+        if (!data) {
+          traceResultEmpty.classList.remove('hidden');
+          traceResultData.classList.add('hidden');
+          return;
+        }
+        
+        traceResultEmpty.classList.add('hidden');
+        traceResultData.classList.remove('hidden');
+        
+        const updateField = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = value || '-';
+        };
+        
+        updateField('traceResultStatus', data.status || '检测到有效水印');
+        updateField('traceResultSource', data.sourceBusiness);
+        updateField('traceResultStrategy', data.strategy);
+        updateField('traceResultWatermarkType', data.watermarkType);
+        updateField('traceResultWatermarkDate', data.watermarkDate);
+        updateField('traceResultFileName', data.fileName);
+        updateField('traceResultIP', data.ip);
+        updateField('traceResultUser', data.user);
+        updateField('traceResultTimestamp', data.timestamp);
+        updateField('traceResultTraceId', data.traceId);
+      };
+      
+      // 显示溯源详情模态框的函数
+      const displayTraceDetailModal = (data) => {
+        if (!data) return;
+        
+        const updateField = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = value || '-';
+        };
+        
+        updateField('modalTraceStatus', data.status || '检测到有效水印');
+        updateField('modalTraceSource', data.sourceBusiness);
+        updateField('modalTraceStrategy', data.strategy);
+        updateField('modalTraceWatermarkType', data.watermarkType);
+        updateField('modalTraceWatermarkDate', data.watermarkDate);
+        updateField('modalTraceTime', data.time);
+        updateField('modalTraceFileName', data.fileName);
+        updateField('modalTraceIP', data.ip);
+        updateField('modalTraceUser', data.user);
+        updateField('modalTraceTimestamp', data.timestamp);
+        updateField('modalTraceTraceId', data.traceId);
+        
+        // 显示模态框
+        const modal = document.getElementById('traceDetailModal');
+        if (modal) {
+          modal.classList.remove('hidden');
+        }
+      };
+      
+      btnDoTrace.addEventListener('click', () => {
+        if (!traceInput.files[0]) { alert('请先选择文件'); return; }
+        
+        // 填充溯源结果信息
+        const now = new Date();
+        const nowStr = now.toLocaleString('zh-CN', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit' 
+        });
+        const fileName = traceInput.files[0].name;
+        const sourceBusiness = 'CRM系统';
+        const strategy = '外发文档水印';
+        
+        // 生成水印相关信息（示例数据）
+        const watermarkTypes = [
+          { visibility: '明水印', category: '文件水印' },
+          { visibility: '暗水印', category: '图片水印' },
+          { visibility: '明水印', category: '数据水印' }
+        ];
+        const randomType = watermarkTypes[Math.floor(Math.random() * watermarkTypes.length)];
+        const watermarkType = `${randomType.visibility} / ${randomType.category}`;
+        
+        // 生成水印日期（假设是3天前）
+        const watermarkDate = new Date(now);
+        watermarkDate.setDate(watermarkDate.getDate() - 3);
+        const watermarkDateStr = watermarkDate.toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        // 生成水印内容
+        const generateIP = () => {
+          return `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+        };
+        const users = ['admin', 'zhangsan', 'lisi', 'wangwu', 'zhaoliu'];
+        const randomUser = users[Math.floor(Math.random() * users.length)];
+        const traceId = `TRACE-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+        
+        // 构建完整的溯源数据对象
+        const traceData = {
+          id: Date.now(),
+          time: nowStr,
+          fileName: fileName,
+          status: '有效水印',
+          sourceBusiness: sourceBusiness,
+          strategy: strategy,
+          watermarkType: watermarkType,
+          watermarkDate: watermarkDateStr,
+          ip: generateIP(),
+          user: randomUser,
+          timestamp: watermarkDateStr,
+          traceId: traceId
+        };
+        
+        // 保存到记录数组
+        traceRecords.unshift(traceData);
+        
+        // 显示溯源结果
+        displayTraceResult(traceData);
+        
+        // 添加到溯源记录表
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-2 pr-4">${nowStr}</td>
+          <td class="py-2 pr-4">${fileName}</td>
+          <td class="py-2 pr-4 text-green-600">有效水印</td>
+          <td class="py-2 pr-4">${sourceBusiness}</td>
+          <td class="py-2 pr-4">${strategy}</td>
+          <td class="py-2 pr-4">
+            <button class="text-primary-600 hover:text-primary-700 view-trace-btn" data-id="${traceData.id}">
+              <i class="fa-solid fa-eye mr-1"></i>查看
+            </button>
+          </td>`;
+        traceHistory.prepend(tr);
+        
+        // 绑定查看按钮事件
+        const viewBtn = tr.querySelector('.view-trace-btn');
+        viewBtn.addEventListener('click', () => {
+          displayTraceDetailModal(traceData);
+        });
+      });
+      
+      // 为已存在的查看按钮绑定事件（事件委托）
+      traceHistory.addEventListener('click', (e) => {
+        if (e.target.closest('.view-trace-btn')) {
+          const btn = e.target.closest('.view-trace-btn');
+          const id = parseInt(btn.getAttribute('data-id'));
+          const record = traceRecords.find(r => r.id === id);
+          if (record) {
+            displayTraceDetailModal(record);
+          }
+        }
+      });
+      
+      // 绑定模态框关闭事件
+      const traceDetailModal = document.getElementById('traceDetailModal');
+      if (traceDetailModal) {
+        const closeEls = traceDetailModal.querySelectorAll('.modal-close');
+        closeEls.forEach(btn => {
+          btn.addEventListener('click', () => traceDetailModal.classList.add('hidden'));
+        });
+        traceDetailModal.addEventListener('click', (e) => {
+          if (e.target === traceDetailModal) {
+            traceDetailModal.classList.add('hidden');
+          }
+        });
+      }
+
+      // Assets list demo data
+      const assetTable = document.getElementById('assetTable');
+      const assetData = [
+        { name: '用户中心', desc: '用户相关业务', status: '已接入', statusColor: 'green' },
+        { name: '订单系统', desc: '订单相关业务', status: '未接入', statusColor: 'red' }
+      ];
+      function renderAssetTable() {
+        assetTable.innerHTML = '';
+        assetData.forEach((a, idx) => {
+          const tr = document.createElement('tr');
+          const statusClass = a.statusColor === 'green' ? 'text-green-600' : 'text-red-600';
+          tr.innerHTML = `
+            <td class="py-2 pr-4">${a.name}</td>
+            <td class="py-2 pr-4">${a.desc}</td>
+            <td class="py-2 pr-4 ${statusClass}">${a.status}</td>
+            <td class="py-2 pr-4">
+              <button class="text-gray-500 hover:text-gray-700" title="查看凭证">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </td>
+            <td class="py-2 pr-4">
+              <button class="text-primary-600 hover:text-primary-700 mr-2" title="编辑">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button class="text-red-600 hover:text-red-700" title="删除">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>`;
+          assetTable.appendChild(tr);
+        });
+      }
+      renderAssetTable();
+
+      // Rules library tabs demo
+      const rulesTabs = document.getElementById('rulesTabs');
+      const rulesTabContent = document.getElementById('rulesTabContent');
+      const templatesContent = document.getElementById('rules-templates-content');
+      
+      // Watermark rules list demo - define wmRules first
+      const wmRulesBody = document.getElementById('wmRulesBody');
+      const wmRules = [
+        { id: 'WM-001', name: '文档外发强水印', type: '文档', opacity: '20', /*content: '用户名+时间',*/ source: 'built-in', waterAlg: '算法A', encAlg: 'RSA', updated: '2025-10-12 12:01' },
+        { id: 'WM-018', name: '图片水印（半透明）', type: '图片', opacity: '30', tilt: '0', /*content: '业务标识',*/ source: 'custom', waterAlg: '算法B', encAlg: 'AES', updated: '2025-10-22 09:15' }
+      ];
+      
+      function renderWMRules() {
+        if (wmRulesBody) {
+          wmRulesBody.innerHTML = '';
+          wmRules.forEach((r, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="py-2 pr-4">${r.id}</td>
+              <td class="py-2 pr-4">${r.name}</td>
+              <td class="py-2 pr-4">${r.type}</td>
+              <td class="py-2 pr-4">${r.waterAlg || ''}</td>
+              <td class="py-2 pr-4">${r.encAlg || ''}</td>
+              <td class="py-2 pr-4">${r.source === 'built-in' ? '内置' : '自定义'}</td>
+              <td class="py-2 pr-4">${r.updated}</td>
+              <td class="py-2 pr-4">
+                <button class="edit-wm-rule text-primary-600 hover:underline mr-2" data-idx="${idx}">编辑</button>
+                <button class="delete-wm-rule text-red-600 hover:underline" data-idx="${idx}">删除</button>
+              </td>`;
+            wmRulesBody.appendChild(tr);
+          });
+        }
+      }
+      renderWMRules();
+      // Populate template rule select (in addTemplateModal) from watermark rules
+      function populateTemplateRuleSelect() {
+        const sel = document.getElementById('templateRuleSelect');
+        if (!sel) return;
+        // 列出所有水印规则（区分来源）
+        sel.innerHTML = wmRules.map(r => `<option value="${r.name}">${r.id} · ${r.name} · ${r.source === 'built-in' ? '内置' : '自定义'}</option>`).join('');
+      }
+      populateTemplateRuleSelect();
+
+      // 填充策略模版下拉（按模版来源过滤）
+      function populateStrategyTemplateSelect(kind) {
+        const sel = document.getElementById('strategyTemplateSelect');
+        if (!sel) return;
+        const list = templates.filter(t => (kind === 'builtin') ? (t.source === 'built-in') : (t.source === 'custom'));
+        sel.innerHTML = list.map(t => `<option value="${t.name}">${t.id} · ${t.name}</option>`).join('');
+      }
+      
+      // Watermark rules tab content generator
+      function generateWatermarkRulesTabContent() {
+        const rulesHtml = wmRules.map((r, idx) => `
+          <tr>
+            <td class="py-2 pr-4">${r.id}</td>
+            <td class="py-2 pr-4">${r.name}</td>
+            <td class="py-2 pr-4">${r.type}</td>
+            <td class="py-2 pr-4">${r.waterAlg || ''}</td>
+            <td class="py-2 pr-4">${r.encAlg || ''}</td>
+            <td class="py-2 pr-4">${r.updated}</td>
+            <td class="py-2 pr-4">
+              <button class="edit-wm-rule text-primary-600 hover:underline mr-2" data-idx="${idx}">编辑</button>
+              <button class="delete-wm-rule text-red-600 hover:underline" data-idx="${idx}">删除</button>
+            </td>
+          </tr>
+        `).join('');
+        return `
+          <div>
+            <div class="flex items-center justify-end mb-4">
+              <button id="btnAddWMRuleInTab" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 text-sm">
+                <i class="fa-solid fa-plus mr-2"></i>新增规则
+              </button>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-gray-500 border-b">
+                    <th class="py-2 pr-4">规则ID</th>
+                    <th class="py-2 pr-4">规则名称</th>
+                    <th class="py-2 pr-4">类型</th>
+                    <th class="py-2 pr-4">水印算法</th>
+                    <th class="py-2 pr-4">加密算法</th>
+                    <th class="py-2 pr-4">更新时间</th>
+                    <th class="py-2 pr-4">操作</th>
+                  </tr>
+                </thead>
+                <tbody>${rulesHtml || '<tr><td colspan="7" class="py-4 text-center text-gray-400">暂无规则</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+      
+      const tabContents = {
+        'rules-audit': `<div class="overflow-x-auto"><table class="min-w-full text-sm"><thead><tr class="text-left text-gray-500"><th class="py-2 pr-4">规则名</th><th class="py-2 pr-4">类型</th><th class="py-2 pr-4">级别</th></tr></thead><tbody><tr><td class="py-2 pr-4">身份证识别</td><td class="py-2 pr-4">识别</td><td class="py-2 pr-4">高</td></tr><tr><td class="py-2 pr-4">手机号脱敏</td><td class="py-2 pr-4">脱敏</td><td class="py-2 pr-4">中</td></tr></tbody></table></div>`,
+        'rules-watermark': generateWatermarkRulesTabContent(),
+        'rules-templates': templatesContent ? templatesContent.outerHTML : '',
+        'rules-dict': `<div>特征字典样例：<span class="px-2 py-1 bg-gray-100 rounded">姓名</span>、<span class="px-2 py-1 bg-gray-100 rounded">手机号</span>、<span class="px-2 py-1 bg-gray-100 rounded">银行卡</span></div>`,
+        'rules-canvas': `<div class="text-gray-700">在算子画布中拖拽"输入 → 规则 → 输出"以组合数据处理流程（原型占位）。</div>`
+      };
+      
+      if (rulesTabs && rulesTabContent) {
+        rulesTabs.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-tab]');
+          if (!btn) return;
+          // Update tab buttons
+          rulesTabs.querySelectorAll('button').forEach(b => {
+            b.classList.remove('bg-primary-50','text-primary-700','border-b-2','border-primary-600');
+          });
+          btn.classList.add('bg-primary-50','text-primary-700','border-b-2','border-primary-600');
+          // Update content
+          if (btn.dataset.tab === 'rules-templates') {
+            // Prefer using the page's static templates content if present, otherwise inject a simple layout
+            if (templatesContent) {
+              rulesTabContent.innerHTML = templatesContent.outerHTML;
+            } else {
+              rulesTabContent.innerHTML = `
+                <div class="grid grid-cols-4 gap-4">
+                  <div class="col-span-1">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="font-medium">规则模版</div>
+                      <button id="btnAddTemplateInTab" class="px-2 py-1 rounded bg-primary-600 text-white text-xs">新增</button>
+                    </div>
+                    <div id="templateList" class="space-y-2"></div>
+                  </div>
+                  <div class="col-span-3">
+                    <div id="templateMetaInTab" class="mb-2 text-sm text-gray-600">未选择模版</div>
+                    <div id="templateContentInTab" class="p-3 border rounded bg-white min-h-[160px]">请从左侧选择模版查看详情</div>
+                  </div>
+                </div>`;
+            }
+
+            // Rebind and initialize after DOM insertion
+            setTimeout(() => {
+              try {
+                renderTemplates();
+                if (templates && templates.length > 0) selectTemplate(templates[0]);
+                // update strategy template selects
+                try { populateStrategyTemplateSelect('builtin'); populateStrategyTemplateSelect('custom'); } catch (e) {}
+
+                // Bind both add-template buttons (tab header and any left-list add button if present)
+                const btnAddTemplateRuleEl = document.getElementById('btnAddTemplateRule');
+                if (btnAddTemplateRuleEl) {
+                  btnAddTemplateRuleEl.onclick = () => openTemplateModal();
+                }
+                const btnAddTemplateInTab = document.getElementById('btnAddTemplateInTab');
+                if (btnAddTemplateInTab) {
+                  btnAddTemplateInTab.onclick = () => openTemplateModal();
+                }
+
+                // Bind search & sort controls if present
+                Array.from(document.querySelectorAll('#templateSearchInput')).forEach(el => el.addEventListener('input', () => renderTemplates()));
+                Array.from(document.querySelectorAll('#templateSortSelect')).forEach(el => el.addEventListener('change', () => renderTemplates()));
+              } catch (err) {
+                console.error('init templates tab error', err);
+              }
+            }, 0);
+          } else if (btn.dataset.tab === 'rules-watermark') {
+            // Regenerate watermark rules content dynamically
+            tabContents['rules-watermark'] = generateWatermarkRulesTabContent();
+            rulesTabContent.innerHTML = tabContents['rules-watermark'];
+            bindWMRuleEvents();
+            // Rebind add button event
+            const btnAddWMRuleInTab = document.getElementById('btnAddWMRuleInTab');
+            if (btnAddWMRuleInTab) {
+              btnAddWMRuleInTab.addEventListener('click', () => openWMRuleModal());
+            }
+          } else {
+            rulesTabContent.innerHTML = tabContents[btn.dataset.tab] || '';
+          }
+        });
+        // Set initial content - default to waterMark tab
+        const defaultTab = rulesTabs.querySelector('[data-tab="rules-watermark"]') || rulesTabs.querySelector('[data-tab]');
+        if (defaultTab) {
+          defaultTab.classList.add('bg-primary-50','text-primary-700','border-b-2','border-primary-600');
+          if (defaultTab.dataset.tab === 'rules-watermark') {
+            rulesTabContent.innerHTML = generateWatermarkRulesTabContent();
+            bindWMRuleEvents();
+            const btnAddWMRuleInTab = document.getElementById('btnAddWMRuleInTab');
+            if (btnAddWMRuleInTab) {
+              btnAddWMRuleInTab.addEventListener('click', () => openWMRuleModal());
+            }
+          } else if (defaultTab.dataset.tab === 'rules-templates') {
+            // render templates tab initial content and bind
+            rulesTabContent.innerHTML = templatesContent ? templatesContent.outerHTML : '';
+            setTimeout(() => {
+              try {
+                renderTemplates();
+                if (templates && templates.length > 0) selectTemplate(templates[0]);
+                try { populateStrategyTemplateSelect('builtin'); populateStrategyTemplateSelect('custom'); } catch (e) {}
+                const btnAddTemplateRuleEl = document.getElementById('btnAddTemplateRule');
+                if (btnAddTemplateRuleEl) btnAddTemplateRuleEl.onclick = () => openTemplateModal();
+                const btnAddTemplateInTab = document.getElementById('btnAddTemplateInTab');
+                if (btnAddTemplateInTab) btnAddTemplateInTab.onclick = () => openTemplateModal();
+                Array.from(document.querySelectorAll('#templateSearchInput')).forEach(el => el.addEventListener('input', () => renderTemplates()));
+                Array.from(document.querySelectorAll('#templateSortSelect')).forEach(el => el.addEventListener('change', () => renderTemplates()));
+              } catch (err) { console.error(err); }
+            },0);
+          } else {
+            rulesTabContent.innerHTML = tabContents[defaultTab.dataset.tab] || '';
+          }
+        }
+      }
+
+
+      // Templates page demo data
+      const templates = [
+        { id: 'TPL-01', source: 'built-in', name: '对外共享报表', desc: '对报表导出添加半透明水印，并对敏感列脱敏', rules: ['文档外发强水印','手机号脱敏'], desens: ['手机号脱敏（保留前三位）','姓名首字母保留'] },
+        { id: 'TPL-02', source: 'custom', name: '图片外发', desc: '图片添加强水印，底部标识业务与责任人', rules: ['图片水印（半透明）','责任人标记'], desens: ['图片敏感标识'] }
+      ];
+      const templateList = document.getElementById('templateList');
+      const templateContent = document.getElementById('templateContent');
+      const templateMeta = document.getElementById('templateMeta');
+
+      function renderTemplates() {
+        // render into all containers that have id 'templateList' (handles duplicate/static sections)
+        const listEls = Array.from(document.querySelectorAll('#templateList'));
+        if (!listEls || listEls.length === 0) return;
+
+        // Helper: get value from the first visible control with this id
+        const getVisibleVal = (id) => {
+          const nodes = Array.from(document.querySelectorAll('#' + id));
+          for (const n of nodes) {
+            if (n.offsetParent !== null) return n.value || '';
+          }
+          return '';
+        };
+
+        const q = (getVisibleVal('templateSearchInput') || '').trim().toLowerCase();
+        const sortVal = getVisibleVal('templateSortSelect') || 'name-asc';
+
+        let list = Array.from(templates || []);
+        if (q) {
+          list = list.filter(t => (t.name || '').toLowerCase().includes(q) || (t.id || '').toLowerCase().includes(q) || (t.desc || '').toLowerCase().includes(q));
+        }
+        // Sorting
+        list.sort((a,b) => {
+          if (sortVal === 'name-asc') return (a.name||'').localeCompare(b.name||'');
+          if (sortVal === 'name-desc') return (b.name||'').localeCompare(a.name||'');
+          if (sortVal === 'source-asc') return (a.source||'').localeCompare(b.source||'');
+          if (sortVal === 'source-desc') return (b.source||'').localeCompare(a.source||'');
+          return 0;
+        });
+
+        // Render into each list container
+        listEls.forEach(listEl => {
+          listEl.innerHTML = '';
+          list.forEach((t, idx) => {
+            // compute original index in templates array
+            const origIdx = templates.findIndex(x => x.id === t.id);
+            const item = document.createElement('div');
+            item.className = 'w-full p-3 rounded border hover:border-primary-300 hover:bg-primary-50 transition-colors';
+            item.innerHTML = `
+              <div class="flex items-center justify-between">
+                <button class="flex-1 text-left template-item-btn" data-idx="${origIdx}">
+                  <div class="font-medium text-sm">${t.name}</div>
+                  <div class="text-xs text-gray-500">${t.id}</div>
+                </button>
+                <div class="flex items-center gap-1 ml-2">
+                  <button class="edit-template-btn text-primary-600 hover:text-primary-700 p-1" data-idx="${origIdx}" title="编辑">
+                    <i class="fa-solid fa-pen text-xs"></i>
+                  </button>
+                  <button class="delete-template-btn text-red-600 hover:text-red-700 p-1" data-idx="${origIdx}" title="删除">
+                    <i class="fa-solid fa-trash text-xs"></i>
+                  </button>
+                </div>
+              </div>
+            `;
+            // Bind click event for template selection
+            item.querySelector('.template-item-btn').onclick = () => selectTemplate(t);
+            // Bind edit/delete events
+            item.querySelector('.edit-template-btn').onclick = (e) => {
+              e.stopPropagation();
+              openTemplateModal(parseInt(e.currentTarget.dataset.idx));
+            };
+            item.querySelector('.delete-template-btn').onclick = (e) => {
+              e.stopPropagation();
+              if (confirm('确定要删除这个模版吗？')) {
+                const delIdx = parseInt(e.currentTarget.dataset.idx);
+                templates.splice(delIdx, 1);
+                // re-render for all containers
+                renderTemplates();
+                // Clear content if deleted template was selected
+                const templateContentInTab = document.getElementById('templateContentInTab');
+                const templateMetaInTab = document.getElementById('templateMetaInTab');
+                if (templateContentInTab) {
+                  templateContentInTab.innerHTML = '<div class="flex items-center justify-center h-64 text-gray-400 text-sm">请选择左侧模版查看详情</div>';
+                }
+                if (templateMetaInTab) {
+                  templateMetaInTab.textContent = '未选择模版';
+                }
+              }
+            };
+            listEl.appendChild(item);
+          });
+        });
+      }
+      
+      function openTemplateModal(editIndex = null) {
+        let modal = document.getElementById('addTemplateModal');
+        // If modal markup is missing (older static area), create a minimal modal to avoid runtime errors
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'addTemplateModal';
+          modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50';
+          modal.innerHTML = `
+            <div class="bg-white rounded-lg w-full max-w-xl overflow-hidden">
+              <div class="p-4 border-b flex items-center justify-between">
+                <div class="font-medium">新增规则模版</div>
+                <button class="modal-close text-gray-500 hover:text-gray-700"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="p-4">
+                <form id="templateForm" class="space-y-4 text-sm">
+                  <label class="block"><span class="text-gray-600">模版名称</span><input id="templateName" class="mt-1 w-full border rounded px-3 py-2" /></label>
+                  <label class="block"><span class="text-gray-600">描述</span><input id="templateDesc" class="mt-1 w-full border rounded px-3 py-2" /></label>
+                  <div id="templateRulesList" class="space-y-2"></div>
+                </form>
+              </div>
+              <div class="p-4 border-t flex justify-end gap-2">
+                <button class="modal-close px-4 py-2 rounded border hover:bg-gray-50">取消</button>
+                <button type="submit" form="templateForm" class="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700">保存模版</button>
+              </div>
+            </div>`;
+          document.body.appendChild(modal);
+          // bind close buttons
+          modal.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
+        }
+        const title = modal.querySelector('.font-medium');
+        if (editIndex !== null && templates[editIndex]) {
+          // Edit mode
+          const t = templates[editIndex];
+          title.textContent = '编辑规则模版';
+          const nameEl = document.getElementById('templateName');
+          const descEl = document.getElementById('templateDesc');
+          if (nameEl) nameEl.value = t.name || '';
+          if (descEl) descEl.value = t.desc || '';
+          document.getElementById('templateForm').dataset.editIndex = editIndex;
+        } else {
+          // Add mode
+          title.textContent = '新增规则模版';
+          document.getElementById('templateForm').reset();
+          document.getElementById('templateForm').dataset.editIndex = '';
+        }
+        modal.classList.remove('hidden');
+      }
+      function selectTemplate(t) {
+        // helper: pick the first visible element with given id (handles duplicate IDs / injected copies)
+        const getVisibleEl = (id) => {
+          const nodes = Array.from(document.querySelectorAll('#' + id));
+          for (const n of nodes) {
+            if (n.offsetParent !== null) return n;
+          }
+          return document.getElementById(id);
+        };
+        const metaEl = templateMeta || getVisibleEl('templateMetaInTab');
+        const contentEl = templateContent || getVisibleEl('templateContentInTab');
+        if (metaEl) metaEl.textContent = `${t.id} · ${t.name}`;
+        if (contentEl) {
+         //
+         
+          // 详情区包含两个页签：脱敏规则 & 水印规则，水印规则页签下有新增规则按钮
+          contentEl.innerHTML = `
+            <div class="mb-4 text-gray-600">${t.desc || ''}</div>
+            <div class="mb-3">
+              <nav class="flex gap-2 text-sm" id="templateDetailTabs">
+                <button data-tab="desens" class="tab-btn px-3 py-1.5 rounded bg-primary-50 text-primary-700 border-b-2 border-primary-600">脱敏规则</button>
+                <button data-tab="watermark" class="tab-btn px-3 py-1.5 rounded hover:bg-gray-50">水印规则</button>
+              </nav>
+            </div>
+            <div id="templateDetailContent">
+              <!-- 默认显示脱敏规则 -->
+              <div id="tpl-desens" class="tpl-detail">
+                <div class="font-medium mb-2">脱敏规则</div>
+                <div class="text-sm text-gray-700">
+                  <ul class="list-disc pl-5">
+                    ${ (t.desens && t.desens.length ? t.desens : ['手机号脱敏（保留前三位）','姓名首字母保留']).map(d => `<li>${d}</li>`).join('') }
+                  </ul>
+                </div>
+              </div>
+              <div id="tpl-watermark" class="tpl-detail hidden">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="font-medium">水印规则</div>
+                  <div class="flex items-center gap-2">
+                    <input id="tpl-rule-search" placeholder="搜索规则" class="border rounded px-3 py-1 text-sm text-gray-600" />
+                    <button id="addRuleToTemplateBtn" class="px-3 py-1 rounded bg-primary-600 text-white text-sm hover:bg-primary-700">新增规则</button>
+                  </div>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-sm">
+                    <thead>
+                      <tr class="text-xs text-gray-600 border-b">
+                        <th class="px-3 py-2">规则名称</th>
+                        <th class="px-3 py-2">描述</th>
+                        <th class="px-3 py-2">水印算法</th>
+                        <th class="px-3 py-2">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tpl-watermark-tbody">
+                      ${ t.rules && t.rules.length ? t.rules.map(rname => {
+                        const found = wmRules.find(w => w.name === rname);
+                        if (found) {
+                          return `<tr data-name="${found.name}" class="border-b last:border-b-0">
+                                    <td class="px-3 py-3">${found.id} · ${found.name}</td>
+                                    <td class="px-3 py-3 text-gray-600">${found.desc || '-'}</td>
+                                    <td class="px-3 py-3">${found.waterAlg || '-'} / ${found.encAlg || '-'}</td>
+                                    <td class="px-3 py-3">
+                                      <button class="edit-wm-in-template text-primary-600 text-sm mr-4" data-wid="${found.id}">编辑</button>
+                                      <button class="delete-wm-in-template text-red-600 text-sm" data-wid="${found.id}">删除</button>
+                                    </td>
+                                  </tr>`;
+                        } else {
+                          return `<tr class="border-b last:border-b-0"><td class="px-3 py-3">${rname}</td><td class="px-3 py-3 text-gray-600">（规则库中未找到）</td><td class="px-3 py-3">-</td><td class="px-3 py-3"><button class="delete-wm-in-template text-red-600 text-sm" data-name="${rname}">删除</button></td></tr>`;
+                        }
+                      }).join('') : `<tr><td class="px-3 py-4 text-gray-500" colspan="4">暂无水印规则</td></tr>` }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>`;
+
+          // 绑定详情页签切换
+          const tabs = contentEl.querySelector('#templateDetailTabs');
+          if (tabs) {
+            tabs.addEventListener('click', (e) => {
+              const btn = e.target.closest('[data-tab]');
+              if (!btn) return;
+              tabs.querySelectorAll('button').forEach(b => b.classList.remove('bg-primary-50','text-primary-700','border-b-2','border-primary-600'));
+              btn.classList.add('bg-primary-50','text-primary-700','border-b-2','border-primary-600');
+              const tab = btn.dataset.tab;
+              const des = contentEl.querySelector('#tpl-desens');
+              const wat = contentEl.querySelector('#tpl-watermark');
+              if (tab === 'desens') { des.classList.remove('hidden'); wat.classList.add('hidden'); }
+              else { des.classList.add('hidden'); wat.classList.remove('hidden'); }
+            });
+            // 默认激活第一个
+            const firstBtn = tabs.querySelector('[data-tab]');
+            if (firstBtn) {
+              firstBtn.classList.add('bg-primary-50','text-primary-700','border-b-2','border-primary-600');
+            }
+          }
+          // 新增规则按钮交互 & 搜索（简单过滤）
+          const addRuleBtn = contentEl.querySelector('#addRuleToTemplateBtn');
+          if (addRuleBtn) {
+            addRuleBtn.addEventListener('click', () => {
+              // 打开新增水印规则弹窗，保存后同步到规则库并添加到当前模版
+              openWMRuleModal(null, (newRule) => {
+                // Avoid duplicate by id/name
+                const exists = wmRules.find(w => w.id === newRule.id || w.name === newRule.name);
+                if (!exists) wmRules.push(newRule);
+                t.rules = t.rules || [];
+                t.rules.push(newRule.name);
+                renderWMRules();
+                selectTemplate(t); // 刷新详情
+                try { populateTemplateRuleSelect(); } catch (e) {}
+              });
+            });
+          }
+          const tplSearch = contentEl.querySelector('#tpl-rule-search');
+          if (tplSearch) {
+            tplSearch.addEventListener('input', (e) => {
+              const v = e.target.value.trim().toLowerCase();
+              const tbody = contentEl.querySelector('#tpl-watermark-tbody');
+              if (!tbody) return;
+              Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+                const text = (tr.textContent||'').toLowerCase();
+                tr.style.display = (!v || text.includes(v)) ? '' : 'none';
+              });
+            });
+          }
+
+          // 绑定模版中水印规则的编辑/删除按钮，保持与规则库双向同步
+          const wmEditBtns = contentEl.querySelectorAll('.edit-wm-in-template');
+          wmEditBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const wid = btn.dataset.wid;
+              const wmIdx = wmRules.findIndex(w => w.id === wid);
+              if (wmIdx === -1) return alert('未在规则库中找到该规则');
+              const oldName = wmRules[wmIdx].name;
+              // 编辑：通过回调把更新同步回模版
+              openWMRuleModal(wmIdx, (newRule) => {
+                // replace in rule library
+                wmRules[wmIdx] = newRule;
+                // update template rule names if changed
+                t.rules = t.rules.map(n => n === oldName ? newRule.name : n);
+                renderWMRules();
+                selectTemplate(t);
+                try { populateTemplateRuleSelect(); } catch (e) {}
+              });
+            });
+          });
+
+          const wmDelBtns = contentEl.querySelectorAll('.delete-wm-in-template');
+          wmDelBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const wid = btn.dataset.wid;
+              const nameAttr = btn.dataset.name;
+              if (wid) {
+                const wmIdx = wmRules.findIndex(w => w.id === wid);
+                if (wmIdx === -1) return alert('未在规则库中找到该规则');
+                const confirmDel = confirm('是否同时从规则库中删除该规则？按确定：同时删除；按取消：仅从当前模版移除');
+                if (confirmDel) {
+                  const oldName = wmRules[wmIdx].name;
+                  wmRules.splice(wmIdx, 1);
+                  // remove from this template
+                  t.rules = t.rules.filter(n => n !== oldName);
+                } else {
+                  // 仅从模版移除
+                  const targetName = nameAttr || (wmRules[wmIdx] && wmRules[wmIdx].name) || '';
+                  t.rules = t.rules.filter(n => n !== targetName);
+                }
+                renderWMRules();
+                selectTemplate(t);
+                try { populateTemplateRuleSelect(); } catch (e) {}
+              } else if (nameAttr) {
+                // rule not in library, just remove from template
+                t.rules = t.rules.filter(n => n !== nameAttr);
+                selectTemplate(t);
+              }
+            });
+          });
+        }
+      }
+      // 兼容旧名的包装函数：统一调用正确的 openWMRuleModal（支持回调）
+      function openWmRuleModal(editIndex = null, onSaveCb) {
+        return openWMRuleModal(editIndex, onSaveCb);
+      }
+      renderTemplates();
+      // 自动选中第一个模版并展示（提供显示样例）
+      if (templates && templates.length > 0) {
+        selectTemplate(templates[0]);
+        // 如果右侧仍是占位文本（未被渲染），尝试再次渲染第一个模版（兜底）
+        try {
+          const contentEl = document.getElementById('templateContentInTab');
+          if (contentEl && contentEl.textContent && contentEl.textContent.trim().includes('请选择左侧模版查看详情')) {
+            selectTemplate(templates[0]);
+          }
+        } catch (e) {}
+      }
+
+      // 策略模版下拉（基于模版列表） - 兼容旧名
+      function populateStrategyTemplateSelect(kind) {
+        const sel = document.getElementById('strategyTemplateSelect');
+        if (!sel) return;
+        const list = templates.filter(t => (kind === 'builtin') ? (t.source === 'built-in') : (t.source === 'custom'));
+        sel.innerHTML = list.map(t => `<option value="${t.name}">${t.id} · ${t.name}</option>`).join('');
+      }
+
+      // 策略水印规则下拉（基于水印规则列表）
+      function populateStrategyRuleSelect() {
+        const sel = document.getElementById('strategyRuleSelect');
+        if (!sel) return;
+        sel.innerHTML = wmRules.map(r => `<option value="${r.name}">${r.id} · ${r.name}</option>`).join('');
+        const selTemplate = document.getElementById('strategyRuleSelectTemplate');
+        if (selTemplate) {
+          selTemplate.innerHTML = wmRules.map(r => `<option value="${r.name}">${r.id} · ${r.name}</option>`).join('');
+        }
+      }
+
+      // 初始化填充（默认内置）
+      populateStrategyTemplateSelect('builtin');
+      populateStrategyRuleSelect();
+
+      // Watermark Rule Form Submit Handler
+  const wmRuleForm = document.getElementById('wmRuleForm');
+  const addWMRuleModal = document.getElementById('addWMRuleModal');
+  const wmRuleModalTitle = document.getElementById('wmRuleModalTitle');
+  // 当从模版详情新增规则时，可通过回调接收新规则，避免重复入库
+  let currentWmRuleOnSaveCb = null;
+      
+      function openWMRuleModal(editIndex = null, onSaveCb = null) {
+        // 保存回调（可为 null）
+        currentWmRuleOnSaveCb = typeof onSaveCb === 'function' ? onSaveCb : null;
+        const modal = document.getElementById('addWMRuleModal');
+        const title = document.getElementById('wmRuleModalTitle');
+        const form = document.getElementById('wmRuleForm');
+
+        modal.classList.remove('hidden');
+        // Use setTimeout to ensure the modal is rendered before attaching listeners and setting values
+        setTimeout(() => {
+          initWMRuleFormInteractions();
+
+          if (editIndex !== null && wmRules[editIndex]) {
+            // Edit mode
+            const rule = wmRules[editIndex];
+            title.textContent = '编辑水印规则';
+            // Store edit index in form dataset for submit handler
+            form.dataset.editIndex = editIndex;
+            // Set form values with guards
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            setVal('wmRuleName', rule.name || '');
+            setVal('wmAlgorithm', (rule.waterAlg === 'DCT' || rule.waterAlg === 'DWT') ? 'frequency' : 'identifier');
+            setVal('wmCarrier', rule.carrier || 'jpg');
+            setVal('wmDescription', rule.desc || '');
+            setVal('clearWatermarkContent', rule.clearWatermarkContent || '');
+            setVal('clearFontFamily', rule.clearFontFamily || 'Arial');
+            setVal('clearFontSize', rule.clearFontSize || '12');
+            setVal('clearFontWeight', rule.clearFontWeight || 'normal');
+            setVal('clearFontColor', rule.clearFontColor || '#000000');
+            setVal('clearBgColor', rule.clearBgColor || '#ffffff');
+            setVal('clearImgWidth', rule.clearImgWidth || '');
+            setVal('clearImgHeight', rule.clearImgHeight || '');
+            setVal('clearOpacity', rule.clearOpacity || '0.5');
+            setVal('clearArrangement', rule.clearArrangement || 'tilt');
+            setVal('clearAngle', rule.clearAngle || '0');
+            setVal('clearPosition', rule.clearPosition || 'center');
+            setVal('clearHorizontalSpacing', rule.clearHorizontalSpacing || '0');
+            setVal('clearVerticalSpacing', rule.clearVerticalSpacing || '0');
+            setVal('secretAlgorithmMode', rule.secretMode || 'dct');
+            // If rule has clear/secret watermark info, check appropriate boxes
+            if (rule.type === 'clear' || rule.type === 'mixed') document.getElementById('wmTypeClear').checked = true;
+            if (rule.type === 'secret' || rule.type === 'mixed') document.getElementById('wmTypeSecret').checked = true;
+          } else {
+            // Add mode
+            title.textContent = '新增水印规则';
+            form.dataset.editIndex = '';
+            if (form) form.reset();
+            // Clear checkboxes
+            const chkClear = document.getElementById('wmTypeClear');
+            const chkSecret = document.getElementById('wmTypeSecret');
+            if (chkClear) chkClear.checked = false;
+            if (chkSecret) chkSecret.checked = false;
+          }
+          // Trigger visibility update after setting values
+          try {
+            const event = new Event('change');
+            document.getElementById('wmAlgorithm')?.dispatchEvent(event);
+            document.getElementById('wmTypeClear')?.dispatchEvent(event);
+            document.getElementById('wmTypeSecret')?.dispatchEvent(event);
+          } catch (e) {}
+        }, 0);
+      }
+      
+      // Handle edit and delete buttons
+      document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('edit-wm-rule')) {
+          const idx = parseInt(e.target.dataset.idx);
+          openWMRuleModal(idx);
+        } else if (e.target.classList.contains('delete-wm-rule')) {
+          if (confirm('确定要删除这条规则吗？')) {
+            const idx = parseInt(e.target.dataset.idx);
+            wmRules.splice(idx, 1);
+            renderWMRules();
+            // Update tab if active
+            const activeTab = rulesTabs?.querySelector('[data-tab].bg-primary-50');
+            if (activeTab && activeTab.dataset.tab === 'rules-watermark') {
+              tabContents['rules-watermark'] = generateWatermarkRulesTabContent();
+              rulesTabContent.innerHTML = tabContents['rules-watermark'];
+              bindWMRuleEvents();
+            }
+          }
+        }
+      });
+      
+      function bindWMRuleEvents() {
+        // Bind edit/delete events in tab content
+        document.querySelectorAll('.edit-wm-rule').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.idx);
+            openWMRuleModal(idx);
+          });
+        });
+        document.querySelectorAll('.delete-wm-rule').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (confirm('确定要删除这条规则吗？')) {
+              const idx = parseInt(btn.dataset.idx);
+              wmRules.splice(idx, 1);
+              tabContents['rules-watermark'] = generateWatermarkRulesTabContent();
+              rulesTabContent.innerHTML = tabContents['rules-watermark'];
+              bindWMRuleEvents();
+            }
+          });
+        });
+      }
+      
+      if (wmRuleForm) {
+        wmRuleForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const editIndex = wmRuleForm.dataset.editIndex || '';
+          // Collect form values with guards
+          const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+          const algorithm = getVal('wmAlgorithm');
+          const carrier = getVal('wmCarrier');
+          const description = getVal('wmDescription');
+          const typeClear = document.getElementById('wmTypeClear')?.checked || false;
+          const typeSecret = document.getElementById('wmTypeSecret')?.checked || false;
+          const clearWatermarkContent = getVal('clearWatermarkContent');
+          const clearFontFamily = getVal('clearFontFamily');
+          const clearFontSize = getVal('clearFontSize');
+          const clearFontWeight = getVal('clearFontWeight');
+          const clearFontColor = getVal('clearFontColor');
+          const clearArrangement = getVal('clearArrangement');
+          const clearAngle = getVal('clearAngle');
+          const clearPosition = getVal('clearPosition');
+          const clearHorizontalSpacing = getVal('clearHorizontalSpacing');
+          const clearVerticalSpacing = getVal('clearVerticalSpacing');
+          const secretMode = getVal('secretAlgorithmMode');
+
+          // Determine watermark type
+          let wmType = 'none';
+          if (typeClear && typeSecret) wmType = 'mixed';
+          else if (typeClear) wmType = 'clear';
+          else if (typeSecret) wmType = 'secret';
+
+          // Build watermark algorithm value
+          let waterAlg = algorithm === 'frequency' ? 'DCT' : 'identifier';
+          if (algorithm === 'frequency' && typeSecret) waterAlg = secretMode || 'DCT';
+
+          const clearBgColor = getVal('clearBgColor');
+          const clearImgWidth = getVal('clearImgWidth');
+          const clearImgHeight = getVal('clearImgHeight');
+          const clearOpacity = getVal('clearOpacity');
+
+          const ruleData = {
+            id: `WM-${String(wmRules.length + 1).padStart(3,'0')}`,
+            name: getVal('wmRuleName') || `${carrier}-${wmType}`,
+            type: wmType,
+            source: 'custom',
+            waterAlg: waterAlg,
+            encAlg: algorithm === 'frequency' ? 'RSA' : 'None',
+            desc: description,
+            carrier: carrier,
+            // Clear watermark settings
+            clearWatermarkContent: typeClear ? clearWatermarkContent : null,
+            clearFontFamily: typeClear ? clearFontFamily : null,
+            clearFontSize: typeClear ? clearFontSize : null,
+            clearFontWeight: typeClear ? clearFontWeight : null,
+            clearFontColor: typeClear ? clearFontColor : null,
+            clearBgColor: typeClear ? clearBgColor : null,
+            clearImgWidth: typeClear ? clearImgWidth : null,
+            clearImgHeight: typeClear ? clearImgHeight : null,
+            clearOpacity: typeClear ? clearOpacity : null,
+            clearArrangement: typeClear ? clearArrangement : null,
+            clearAngle: typeClear ? clearAngle : null,
+            clearPosition: typeClear ? clearPosition : null,
+            clearHorizontalSpacing: typeClear ? clearHorizontalSpacing : null,
+            clearVerticalSpacing: typeClear ? clearVerticalSpacing : null,
+            // Secret watermark settings
+            secretMode: typeSecret ? secretMode : null,
+            updated: new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-')
+          };
+          // 如果存在回调，交由回调处理新规则（比如同步到模版并添加到规则库），并清除回调
+          if (currentWmRuleOnSaveCb) {
+            try { currentWmRuleOnSaveCb(ruleData); } catch (err) { console.error('onSaveCb error', err); }
+            currentWmRuleOnSaveCb = null;
+            // 关闭弹窗并重置表单
+            wmRuleForm.reset();
+            addWMRuleModal.classList.add('hidden');
+            // 更新下拉/列表等显示（回调内部可能已经处理，此处再尝试刷新以保持一致）
+            try { populateTemplateRuleSelect(); renderWMRules(); } catch (e) {}
+          } else {
+            if (editIndex !== '') {
+              // Edit existing
+              wmRules[parseInt(editIndex)] = ruleData;
+            } else {
+              // Add new
+              wmRules.push(ruleData);
+            }
+            renderWMRules();
+            wmRuleForm.reset();
+            addWMRuleModal.classList.add('hidden');
+            // 更新模版/策略中的下拉数据
+            try { populateTemplateRuleSelect(); } catch (e) { /* ignore */ }
+          }
+          // 更新模版/策略中的下拉数据
+          try { populateTemplateRuleSelect(); } catch (e) { /* ignore */ }
+          // Update watermark rules tab if it's active
+          const activeTab = rulesTabs?.querySelector('[data-tab].bg-primary-50');
+          if (activeTab && activeTab.dataset.tab === 'rules-watermark') {
+            tabContents['rules-watermark'] = generateWatermarkRulesTabContent();
+            rulesTabContent.innerHTML = tabContents['rules-watermark'];
+            bindWMRuleEvents();
+            // Rebind add button event
+            const btnAddWMRuleInTab = document.getElementById('btnAddWMRuleInTab');
+            if (btnAddWMRuleInTab) {
+              btnAddWMRuleInTab.addEventListener('click', () => openWMRuleModal());
+            }
+          }
+        });
+      }
+      
+      // Bind add button
+      const btnAddWMRule = document.getElementById('btnAddWMRule');
+      if (btnAddWMRule) {
+        btnAddWMRule.addEventListener('click', () => openWMRuleModal());
+      }
+
+      
+
+      // 在打开弹窗时初始化交互
+      const originalOpenWMRuleModal = openWMRuleModal;
+      openWMRuleModal = function(editIndex = null, onSaveCb = null) {
+        originalOpenWMRuleModal(editIndex, onSaveCb);
+        // 延迟执行以确保DOM已渲染
+        setTimeout(() => {
+          initWMRuleFormInteractions();
+        }, 10);
+      };
+      // Template form handler
+      const templateForm = document.getElementById('templateForm');
+      const addTemplateModal = document.getElementById('addTemplateModal');
+      let templateRules = [];
+      
+      // Handle add rule button in template form
+      document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('add-rule-btn')) {
+          e.preventDefault();
+          const input = e.target.previousElementSibling;
+          const ruleName = input.value.trim();
+          if (ruleName) {
+            templateRules.push(ruleName);
+            input.value = '';
+            updateTemplateRulesList();
+          }
+        }
+        // Handle remove rule
+        if (e.target.classList.contains('remove-rule-btn')) {
+          const idx = parseInt(e.target.dataset.idx);
+          templateRules.splice(idx, 1);
+          updateTemplateRulesList();
+        }
+      });
+
+      function updateTemplateRulesList() {
+        const listEl = document.getElementById('templateRulesList');
+        if (listEl) {
+          listEl.innerHTML = templateRules.map((r, idx) => `
+            <div class="flex items-center gap-2 bg-gray-50 rounded px-3 py-2">
+              <span class="flex-1 text-sm">${r}</span>
+              <button type="button" class="remove-rule-btn text-red-600 hover:text-red-700" data-idx="${idx}">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          `).join('');
+        }
+      }
+
+      if (templateForm && addTemplateModal) {
+        templateForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const nameEl = document.getElementById('templateName');
+          const descEl = document.getElementById('templateDesc');
+          const selectedRules = []; // 模版创建时只保存名称/描述，规则通过详情页新增
+          const name = nameEl ? nameEl.value.trim() : '';
+          const desc = descEl ? descEl.value.trim() : '';
+          const editIndex = templateForm.dataset.editIndex;
+
+          if (!name) {
+            alert('请填写模版名称');
+            return;
+          }
+
+          if (editIndex !== '') {
+            // Edit existing template
+            const idx = parseInt(editIndex);
+            templates[idx] = {
+              ...templates[idx],
+              name: name,
+              desc: desc || '无描述',
+              rules: [...selectedRules]
+            };
+          } else {
+            // Add new template
+            const n = templates.length + 1;
+            const t = {
+              id: `TPL-${String(n).padStart(2,'0')}`,
+              source: 'custom',
+              name: name,
+              desc: desc || '无描述',
+              rules: [],
+              desens: []
+            };
+            templates.push(t);
+          }
+
+          templateForm.reset();
+          // 清除选择（如果存在 templateRuleSelect）
+          const selElem = document.getElementById('templateRuleSelect');
+          if (selElem) Array.from(selElem.options).forEach(o => o.selected = false);
+          addTemplateModal.classList.add('hidden');
+          // Always update template lists (all templateList containers)
+          try { renderTemplates(); } catch (e) { console.error('renderTemplates error', e); }
+          // Select the template that was just added/edited if possible
+          const selectedIndex = editIndex !== '' ? parseInt(editIndex) : templates.length - 1;
+          if (templates[selectedIndex]) {
+            try { selectTemplate(templates[selectedIndex]); } catch (e) { console.error('selectTemplate error', e); }
+          }
+          // 更新策略下拉（默认填充内置模版）
+          populateStrategyTemplateSelect('builtin');
+        });
+      }
+
+      // Bind add template buttons
+      const bindAddTemplateButtons = () => {
+        const btnAddTemplateInTab = document.getElementById('btnAddTemplateInTab');
+        if (btnAddTemplateInTab) {
+          btnAddTemplateInTab.addEventListener('click', () => {
+            openTemplateModal();
+          });
+        }
+      };
+      
+      // Bind add template buttons safely
+      const btnAddTemplateRuleEl = document.getElementById('btnAddTemplateRule');
+      if (btnAddTemplateRuleEl) {
+        bindModal('btnAddTemplateRule', 'addTemplateModal');
+      }
+      bindAddTemplateButtons();
+
+      // 侧栏菜单点击切换页面（绑定一次）
+      function initSidebarNav() {
+        document.querySelectorAll('.nav-link').forEach(link => {
+          // avoid double-binding
+          if (link._hasNavBind) return;
+          link._hasNavBind = true;
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const module = link.dataset.module;
+            const page = link.dataset.page;
+            if (module && page) {
+              setActiveModule(module);
+              setActivePage(module, page);
+            }
+          });
+        });
+      }
+
+      // Initialize when DOM is ready
+      function initializeApp() {
+        try {
+          console.log('Initializing app...');
+        
+        // 绑定导航菜单项
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+          item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const module = item.dataset.module;
+            if (module && routeMap[module]) {
+              setActiveModule(module);
+              const menuGridDropdown = document.getElementById('menuGridDropdown');
+              if (menuGridDropdown) {
+                menuGridDropdown.classList.add('hidden');
+              }
+            }
+          });
+        });
+
+  // Kick off router
+  initRouter();
+
+  // Ensure watermark rule modal interactions (明水印/暗水印等) are initialized
+  try { if (typeof initWMRuleFormInteractions === 'function') initWMRuleFormInteractions(); } catch(e) { console.error('initWMRuleFormInteractions error', e); }
+  // Ensure sidebar nav is bound
+  try { initSidebarNav(); } catch(e) { console.error('initSidebarNav error', e); }
+
+        // Grid Menu Dropdown
+        const menuGridBtn = document.getElementById('menuGridBtn');
+        const menuGridDropdown = document.getElementById('menuGridDropdown');
+        console.log('Menu grid button:', menuGridBtn, 'Dropdown:', menuGridDropdown);
+        if (menuGridBtn && menuGridDropdown) {
+          console.log('Binding grid menu dropdown events...');
+          menuGridBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('Grid button clicked, toggling dropdown');
+            menuGridDropdown.classList.toggle('hidden');
+          });
+          // Close dropdown when clicking outside
+          document.addEventListener('click', (e) => {
+            if (!menuGridBtn.contains(e.target) && !menuGridDropdown.contains(e.target)) {
+              menuGridDropdown.classList.add('hidden');
+            }
+          });
+          // Handle menu items with data-module
+          menuGridDropdown.querySelectorAll('.menu-item[data-module]').forEach(item => {
+            item.addEventListener('click', (e) => {
+              e.preventDefault();
+              const module = item.dataset.module;
+              if (module && routeMap[module]) {
+                setActiveModule(module);
+                menuGridDropdown.classList.add('hidden');
+              }
+            });
+          });
+        }
+
+        // Shield Icon - Rules Library Entry (修复点)
+        const shieldRulesBtn = document.getElementById('shieldRulesBtn');
+        if (shieldRulesBtn) {
+          shieldRulesBtn.addEventListener('click', () => {
+            console.log('Shield rules button clicked');
+            const module = shieldRulesBtn.dataset.module || 'rules';
+            if (module && routeMap[module]) {
+              setActiveModule(module);
+              const firstPage = Object.keys(routeMap[module])[0];
+              setActivePage(module, firstPage);
+            }
+          });
+        }
+
+        // Sidebar toggle (mobile)
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        if (sidebar && sidebarToggle) {
+          sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('hidden');
+          });
+        }
+        } catch (error) {
+          console.error('Error initializing app:', error);
+          // Fallback: show home view
+          const homeView = document.getElementById('view-home');
+          if (homeView) {
+            homeView.classList.add('active');
+          }
+        }
+      }
+
+      // Global error handlers to capture uncaught exceptions and promise rejections
+      window.onerror = function(message, source, lineno, colno, error) {
+        console.error('Global error captured:', message, source, lineno, colno, error);
+        try {
+          const overlay = document.getElementById('errorOverlay');
+          const msg = document.getElementById('errorOverlayMsg');
+          if (msg) msg.textContent = `${message}\n${source}:${lineno}:${colno}\n${error && error.stack ? error.stack : ''}`;
+          if (overlay) overlay.classList.remove('hidden');
+        } catch (e) {}
+      };
+      window.addEventListener('unhandledrejection', function(evt) {
+        console.error('Unhandled promise rejection', evt.reason);
+        try {
+          const overlay = document.getElementById('errorOverlay');
+          const msg = document.getElementById('errorOverlayMsg');
+          if (msg) msg.textContent = `UnhandledRejection: ${evt.reason && evt.reason.stack ? evt.reason.stack : String(evt.reason)}`;
+          if (overlay) overlay.classList.remove('hidden');
+        } catch (e) {}
+      });
+      const errClose = document.getElementById('errorOverlayClose');
+      if (errClose) errClose.addEventListener('click', () => {
+        const overlay = document.getElementById('errorOverlay');
+        if (overlay) overlay.classList.add('hidden');
+      });
+
+      // Wait for DOM to be ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeApp);
+      } else {
+        // DOM is already loaded
+        initializeApp();
+      }
+      
+      // Ensure at least one view is visible on load
+      window.addEventListener('load', () => {
+        const activeView = document.querySelector('.view.active');
+        if (!activeView) {
+          // If no view is active, activate the default home view
+          const homeView = document.getElementById('view-home');
+          if (homeView) {
+            homeView.classList.add('active');
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
+</html>
